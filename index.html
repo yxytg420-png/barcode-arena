@@ -3,27 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>BARCODE ARENA P2P</title>
+<title>BARCODE ARENA</title>
 <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <style>
-:root{--bg:#090d14;--panel:#121925;--line:#263246;--text:#f6f8fb;--muted:#94a3b8;--blue:#3b82f6;--red:#ef4444;--gold:#f59e0b;--green:#22c55e}
+:root{--bg:#090d14;--panel:#121925;--line:#263246;--text:#f6f8fb;--muted:#94a3b8;--blue:#3b82f6;--red:#ef4444;--gold:#f59e0b;--green:#22c55e;--purple:#a855f7}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#18243a,#090d14 55%);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
-main{max-width:760px;margin:auto;padding:18px}.card{background:#121925;border:1px solid var(--line);border-radius:18px;padding:16px;margin:14px 0}
+main{max-width:780px;margin:auto;padding:18px}.card{background:#121925;border:1px solid var(--line);border-radius:18px;padding:16px;margin:14px 0}
 h1{font-size:clamp(30px,8vw,52px);margin:4px 0}.sub,.status,.note{color:var(--muted)}.note{font-size:13px;line-height:1.55}
 button,input{font:inherit}button{border:0;border-radius:12px;padding:12px 14px;font-weight:800;background:#263246;color:white;margin:4px;cursor:pointer}
-button.primary{background:#2563eb}button.green{background:#15803d}button.red{background:#b91c1c}button:disabled{opacity:.45}
+button.primary{background:#2563eb}button.green{background:#15803d}button.special{background:linear-gradient(135deg,#7e22ce,#a855f7)}button:disabled{opacity:.4}
 input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--line);background:#090d14;color:white;text-align:center;font-size:20px;letter-spacing:.12em}
 .row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}.hidden{display:none!important}.roomcode{text-align:center;font-size:48px;font-weight:900;color:var(--gold);letter-spacing:.2em}
-.fighter{text-align:center}.avatar{font-size:74px}.name{font-size:26px;font-weight:900}.tag{display:inline-block;padding:5px 10px;background:#263246;border-radius:999px}
+.fighter{text-align:center}.avatar{font-size:70px}.name{font-size:25px;font-weight:900}.tag{display:inline-block;padding:5px 10px;background:#263246;border-radius:999px;margin:3px}
+.rarity{font-size:13px;font-weight:900}.R{color:#cbd5e1}.SR{color:#60a5fa}.SSR{color:#fbbf24}.UR{color:#f472b6}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.stat{background:#090d14;border:1px solid var(--line);border-radius:10px;padding:8px}.stat b{display:block;font-size:19px}
 video{width:100%;border-radius:14px;background:#000;max-height:48vh;object-fit:cover}.battle{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;text-align:center}
-.vs{font-size:25px;font-weight:900;color:var(--gold)}.hp{height:14px;background:#263246;border-radius:999px;overflow:hidden;margin:7px}.hp>div{height:100%;background:#22c55e}
-.log{white-space:pre-line;background:#090d14;border:1px solid var(--line);border-radius:12px;padding:12px;min-height:130px}.warn{color:#fbbf24}
+.vs{font-size:25px;font-weight:900;color:var(--gold)}.hp{height:16px;background:#263246;border-radius:999px;overflow:hidden;margin:7px}.hp>div{height:100%;background:#22c55e;transition:.3s}
+.log{white-space:pre-line;background:#090d14;border:1px solid var(--line);border-radius:12px;padding:12px;min-height:155px;max-height:260px;overflow:auto;line-height:1.55}.warn{color:#fbbf24}.big{font-size:28px;font-weight:900;text-align:center}
 </style>
 </head>
 <body><main>
 <h1>BARCODE ARENA</h1>
-<p class="sub">ピッと召喚。4桁コードで直接対戦。</p>
+<p class="sub">ピッと召喚。あとは戦士が勝手にバシバシ戦う。</p>
 
 <section class="card">
 <h2>1. 対戦部屋</h2>
@@ -36,137 +37,65 @@ video{width:100%;border-radius:14px;background:#000;max-height:48vh;object-fit:c
 <section class="card hidden" id="scanCard">
 <h2>2. バーコードをピッ！</h2>
 <div class="row"><button class="primary" id="cameraBtn">📷 カメラで読む</button><button id="manualBtn">数字を入力</button></div>
-<div id="secureMsg" class="note warn hidden">スマホカメラのライブ読取は、HTTPSで公開したページで使えます。今は数字入力で試せます。</div>
+<div id="secureMsg" class="note warn hidden">カメラ読取が使えない場合は数字入力で召喚できます。</div>
 <div id="manualBox" class="hidden"><input id="manualCode" inputmode="numeric" placeholder="JAN / EAN"><div class="row"><button class="green" id="summonBtn">召喚</button></div></div>
 <div id="cameraBox" class="hidden"><video id="video" playsinline></video><div class="row"><button id="stopCam">閉じる</button></div></div>
 <div id="myFighter" class="fighter hidden"></div>
 </section>
 
 <section class="card hidden" id="battleCard">
-<h2>3. BATTLE!</h2><div id="battleView" class="battle"></div><div id="turnText" class="status" style="text-align:center;margin:12px"></div>
-<div class="row" id="actions"><button class="red" data-act="attack">⚔️ 攻撃</button><button data-act="guard">🛡️ 防御</button><button class="primary" data-act="special">✨ 必殺技</button></div>
+<h2>3. AUTO BATTLE</h2>
+<div id="battleView" class="battle"></div>
+<div id="turnText" class="big" style="margin:12px">BATTLE START!</div>
+<div class="row"><button id="specialBtn" class="special" disabled>✨ 必殺技を放つ！</button></div>
+<div class="status" style="text-align:center;margin:6px">必殺技は1戦につき1回だけ。押したら次の自分の攻撃で発動！</div>
 <div id="log" class="log">戦闘準備中…</div>
 </section>
 
-<section class="card"><div class="note">
-この版は Firebase 設定不要。PeerJS / WebRTC で2台のブラウザを直接つなぎます。インターネット接続は必要です。
-同じバーコードからは同じ戦士が生成されます。相手との通信が確立すると、それぞれの戦士とターン操作が同期されます。
-</div></section>
+<section class="card"><div class="note">キャラクターはバーコードから「種族・職業・武器・属性・レアリティ・名前・必殺技」を組み合わせて生成。名前だけでも576通り、外見や職業まで含めると膨大な組み合わせになります。</div></section>
 </main>
-
 <script>
-const TYPES=[["炎","🔥"],["水","💧"],["雷","⚡"],["風","🌪️"],["鋼","⚙️"],["光","✨"],["闇","🌑"],["草","🌿"]];
-const AV=["🤖","🐲","🦁","🦅","🐺","🦂","🦈","🦖","🥷","🧙"];
-const PRE=["メガ","サンダー","ネオ","ダーク","グランド","ハイパー","ゼロ","スター","ブレイブ","クロム"];
-const SUF=["ナイト","ドラゴン","ファング","ギア","レオン","ホーク","ウルフ","バスター","タイタン","セイバー"];
-const SP=["メテオクラッシュ","ゼロ距離ブレイク","サンダーレイ","オーバードライブ","ミラージュラッシュ","ギガントプレス","クロスファング","シャイニングノヴァ"];
+const TYPES=[["炎","🔥"],["水","💧"],["雷","⚡"],["風","🌪️"],["鋼","⚙️"],["光","✨"],["闇","🌑"],["草","🌿"],["氷","❄️"],["土","🪨"],["毒","☠️"],["星","🌟"]];
+const RACES=["竜人","機甲兵","獣人","魔導士","騎士","忍者","海王族","巨人","妖精","死霊","天使","悪魔","昆虫戦士","鳥人","恐竜族","宇宙兵"];
+const JOBS=["剣士","槍兵","砲撃手","拳闘士","魔術師","守護者","狩人","暗殺者","召喚士","狂戦士","聖騎士","錬金術師"];
+const WEAPONS=["⚔️","🗡️","🔨","🪓","🏹","🔱","🪄","🛡️","💣","⛓️","🧪","🔮"];
+const BODY=["🐲","🤖","🦁","🦅","🐺","🦂","🦈","🦖","🥷","🧙","👹","👻","🪽","🐯","🦊","🐙","🪲","🦍","🐊","🦇","🐉","🦾","👽","🗿"];
+const PRE=["メガ","サンダー","ネオ","ダーク","グランド","ハイパー","ゼロ","スター","ブレイブ","クロム","フレア","ミスト","ヴァル","ガルド","ルナ","ソル","ギガ","レイ","ヴォイド","アーク","バル","ゼノ","ノヴァ","カイザー"];
+const SUF=["ナイト","ドラゴン","ファング","ギア","レオン","ホーク","ウルフ","バスター","タイタン","セイバー","ロード","レイダー","ストーム","ハイドラ","ゴーレム","フェニックス","ランサー","ブレイカー","パラディン","リーパー","シーカー","ヴァイパー","ビースト","オメガ"];
+const SP=["メテオクラッシュ","ゼロ距離ブレイク","サンダーレイ","オーバードライブ","ミラージュラッシュ","ギガントプレス","クロスファング","シャイニングノヴァ","アビスゲート","ドラゴンインパクト","テンペストエッジ","コズミックバースト","ブリザードゼロ","ヴェノムバイト","グランドクエイク","ホーリーブレイカー"];
 const $=x=>document.getElementById(x);
-let lobbyPeer=null, gamePeer=null, conn=null, role=null, room=null, me=null, other=null, battle=null, stream=null, detector=null;
+let lobbyPeer=null,gamePeer=null,conn=null,role=null,room=null,me=null,other=null,battle=null,stream=null,detector=null,battleTimer=null;
 
 function hash(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)>>>0}return h>>>0}
 function rnd(s,n){return(hash(s+":"+n)%100000)/100000}
-function makeFighter(code){const t=Math.floor(rnd(code,1)*TYPES.length);return{code,type:TYPES[t][0],icon:TYPES[t][1],avatar:AV[Math.floor(rnd(code,2)*AV.length)],name:PRE[Math.floor(rnd(code,3)*PRE.length)]+"・"+SUF[Math.floor(rnd(code,4)*SUF.length)],maxHp:180+Math.floor(rnd(code,5)*121),atk:45+Math.floor(rnd(code,6)*56),def:35+Math.floor(rnd(code,7)*56),spd:30+Math.floor(rnd(code,8)*71),crit:5+Math.floor(rnd(code,9)*16),special:SP[Math.floor(rnd(code,10)*SP.length)]}}
+function pick(a,s,n){return a[Math.floor(rnd(s,n)*a.length)]}
+function rarity(seed){const x=rnd(seed,77);if(x>.985)return["UR",1.16];if(x>.92)return["SSR",1.10];if(x>.70)return["SR",1.05];return["R",1]}
+function makeFighter(code){const t=pick(TYPES,code,1),rr=rarity(code),mul=rr[1];return{code,type:t[0],icon:t[1],race:pick(RACES,code,2),job:pick(JOBS,code,3),weapon:pick(WEAPONS,code,4),avatar:pick(BODY,code,5)+pick(WEAPONS,code,4),rarity:rr[0],name:pick(PRE,code,6)+"・"+pick(SUF,code,7),maxHp:Math.round((175+Math.floor(rnd(code,8)*126))*mul),atk:Math.round((42+Math.floor(rnd(code,9)*60))*mul),def:Math.round((32+Math.floor(rnd(code,10)*60))*mul),spd:Math.round((28+Math.floor(rnd(code,11)*72))*mul),crit:5+Math.floor(rnd(code,12)*18),special:pick(SP,code,13)}}
 function randomRoom(){return String(Math.floor(1000+Math.random()*9000))}
-function peerId(code){return "barcode-arena-"+code}
-
-function init(){
- try{
-   lobbyPeer=new Peer();
-   lobbyPeer.on("open",()=>{$("netStatus").textContent="通信準備OK";$("createBtn").disabled=false;$("joinShowBtn").disabled=false});
-   lobbyPeer.on("error",e=>{$("netStatus").textContent="通信サービスに接続できませんでした。ネット接続を確認してね。"});
- }catch(e){$("netStatus").textContent="通信ライブラリを読み込めませんでした。ネット接続を確認してね。";}
-}
+function peerId(code){return"barcode-arena-"+code}
+function init(){try{lobbyPeer=new Peer();lobbyPeer.on("open",()=>{$("netStatus").textContent="通信準備OK";$("createBtn").disabled=false;$("joinShowBtn").disabled=false});lobbyPeer.on("error",()=>{$("netStatus").textContent="通信サービスに接続できませんでした。"})}catch(e){$("netStatus").textContent="通信ライブラリを読み込めませんでした。"}}
 init();
-
 function destroyLobby(){try{lobbyPeer&&lobbyPeer.destroy()}catch(e){}lobbyPeer=null}
-
-function createRoom(){
- room=randomRoom(); role="host"; destroyLobby();
- gamePeer=new Peer(peerId(room));
- $("roomInfo").classList.remove("hidden");$("roomCodeView").textContent=room;$("roomStatus").textContent="部屋を作成中…";
- gamePeer.on("open",()=>{$("roomStatus").textContent="相手を待っています…";$("scanCard").classList.remove("hidden")});
- gamePeer.on("connection",c=>{if(conn&&conn.open){c.close();return}setupConnection(c)});
- gamePeer.on("error",e=>{
-   if(e.type==="unavailable-id"){room=randomRoom();$("roomCodeView").textContent=room;gamePeer.destroy();return createRoom();}
-   $("roomStatus").textContent="通信エラー: "+e.type;
- });
-}
-function joinRoom(){
- const c=$("joinCode").value.replace(/\D/g,"");if(c.length!==4)return alert("4桁のコードを入力してね。");
- room=c;role="guest";destroyLobby();gamePeer=new Peer();
- gamePeer.on("open",()=>{const c2=gamePeer.connect(peerId(room),{reliable:true});setupConnection(c2);$("roomInfo").classList.remove("hidden");$("roomCodeView").textContent=room;$("roomStatus").textContent="接続しています…";$("scanCard").classList.remove("hidden")});
- gamePeer.on("error",e=>{$("roomStatus").textContent="接続できませんでした。コードを確認してね。"});
-}
-function setupConnection(c){
- conn=c;
- c.on("open",()=>{$("roomStatus").textContent="相手と接続しました！";send({type:"hello"});if(me)send({type:"fighter",fighter:me})});
- c.on("data",receive);
- c.on("close",()=>{$("roomStatus").textContent="相手との接続が切れました。"});
- c.on("error",()=>{$("roomStatus").textContent="通信エラーが発生しました。"});
-}
+function createRoom(){room=randomRoom();role="host";destroyLobby();gamePeer=new Peer(peerId(room));$("roomInfo").classList.remove("hidden");$("roomCodeView").textContent=room;$("roomStatus").textContent="部屋を作成中…";gamePeer.on("open",()=>{$("roomStatus").textContent="相手を待っています…";$("scanCard").classList.remove("hidden")});gamePeer.on("connection",c=>{if(conn&&conn.open){c.close();return}setupConnection(c)});gamePeer.on("error",e=>{if(e.type==="unavailable-id"){try{gamePeer.destroy()}catch(x){}return createRoom()}$("roomStatus").textContent="通信エラー: "+e.type})}
+function joinRoom(){const c=$("joinCode").value.replace(/\D/g,"");if(c.length!==4)return alert("4桁のコードを入力してね。");room=c;role="guest";destroyLobby();gamePeer=new Peer();gamePeer.on("open",()=>{setupConnection(gamePeer.connect(peerId(room),{reliable:true}));$("roomInfo").classList.remove("hidden");$("roomCodeView").textContent=room;$("roomStatus").textContent="接続しています…";$("scanCard").classList.remove("hidden")});gamePeer.on("error",()=>{$("roomStatus").textContent="接続できませんでした。コードを確認してね。"})}
+function setupConnection(c){conn=c;c.on("open",()=>{$("roomStatus").textContent="相手と接続しました！";if(me)send({type:"fighter",fighter:me})});c.on("data",receive);c.on("close",()=>{$("roomStatus").textContent="相手との接続が切れました。"})}
 function send(o){if(conn&&conn.open)conn.send(o)}
-function receive(m){
- if(!m||!m.type)return;
- if(m.type==="fighter"){other=m.fighter;maybeStart()}
- if(m.type==="start"){battle=m.battle;other=m.other;showBattle()}
- if(m.type==="state"){battle=m.battle;renderBattle()}
-}
-function summon(code){
- code=(code||"").replace(/\D/g,"");if(code.length<6)return alert("バーコード番号が短すぎます。");
- me=makeFighter(code);showMine();send({type:"fighter",fighter:me});maybeStart();
-}
-function showMine(){const f=me,e=$("myFighter");e.classList.remove("hidden");e.innerHTML=`<div class="avatar">${f.avatar}</div><div class="name">${f.name}</div><span class="tag">${f.icon} ${f.type}属性</span><div class="stats"><div class="stat">HP<b>${f.maxHp}</b></div><div class="stat">攻撃<b>${f.atk}</b></div><div class="stat">防御<b>${f.def}</b></div><div class="stat">素早さ<b>${f.spd}</b></div><div class="stat">会心<b>${f.crit}%</b></div><div class="stat">必殺<b style="font-size:12px">${f.special}</b></div></div>`}
-function maybeStart(){
- if(!me||!other||!conn||!conn.open)return;
- if(role==="host"&&!battle){
-   const first=me.spd>=other.spd?"host":"guest";
-   battle={hostHp:me.maxHp,guestHp:other.maxHp,turn:first,hostGuard:false,guestGuard:false,log:"戦闘開始！",winner:null};
-   send({type:"start",battle,other:me});showBattle();
- }
-}
+function receive(m){if(!m||!m.type)return;if(m.type==="fighter"){other=m.fighter;maybeStart()}if(m.type==="start"){battle=m.battle;other=m.other;showBattle()}if(m.type==="state"){battle=m.battle;renderBattle()}if(m.type==="specialRequest"&&role==="host"&&battle&&!battle.winner){battle.guestSpecialQueued=true;pushState()}}
+function summon(code){code=(code||"").replace(/\D/g,"");if(code.length<6)return alert("バーコード番号が短すぎます。");me=makeFighter(code);showMine();send({type:"fighter",fighter:me});maybeStart()}
+function showMine(){const f=me,e=$("myFighter");e.classList.remove("hidden");e.innerHTML=`<div class="avatar">${f.avatar}</div><div class="name">${f.name}</div><div><span class="tag">${f.icon} ${f.type}属性</span><span class="tag">${f.race} / ${f.job}</span><span class="rarity ${f.rarity}">${f.rarity}</span></div><div class="stats"><div class="stat">HP<b>${f.maxHp}</b></div><div class="stat">攻撃<b>${f.atk}</b></div><div class="stat">防御<b>${f.def}</b></div><div class="stat">素早さ<b>${f.spd}</b></div><div class="stat">会心<b>${f.crit}%</b></div><div class="stat">必殺<b style="font-size:12px">${f.special}</b></div></div>`}
+function maybeStart(){if(!me||!other||!conn||!conn.open)return;if(role==="host"&&!battle){const first=me.spd>=other.spd?"host":"guest";battle={hostHp:me.maxHp,guestHp:other.maxHp,turn:first,round:1,hostSpecialUsed:false,guestSpecialUsed:false,hostSpecialQueued:false,guestSpecialQueued:false,log:"⚔️ BATTLE START！",winner:null};send({type:"start",battle,other:me});showBattle();startAutoBattle()}}
 function showBattle(){$("battleCard").classList.remove("hidden");renderBattle()}
 function hpFor(r){return r==="host"?battle.hostHp:battle.guestHp}
-function fighterFor(r){return r===role?me:other}
-function mini(f,hp){let pct=Math.max(0,Math.round(hp/f.maxHp*100));return `<div><div style="font-size:45px">${f.avatar}</div><b>${f.name}</b><div class="hp"><div style="width:${pct}%"></div></div><small>${hp}/${f.maxHp}</small></div>`}
-function renderBattle(){
- if(!battle||!me||!other)return;const myRole=role,oppRole=role==="host"?"guest":"host";
- $("battleView").innerHTML=mini(me,hpFor(myRole))+`<div class="vs">VS</div>`+mini(other,hpFor(oppRole));
- const buttons=$("actions").querySelectorAll("button");
- if(battle.winner){$("turnText").textContent=battle.winner===role?"🏆 あなたの勝ち！":"😵 あなたの負け";buttons.forEach(b=>b.disabled=true)}
- else{$("turnText").textContent=battle.turn===role?"あなたのターン":"相手のターン";buttons.forEach(b=>b.disabled=battle.turn!==role)}
- $("log").textContent=battle.log;
-}
-function act(kind){
- if(!battle||battle.turn!==role||battle.winner)return;
- const oppRole=role==="host"?"guest":"host";const mine=me,opp=other;
- if(kind==="guard"){
-   if(role==="host")battle.hostGuard=true;else battle.guestGuard=true;
-   battle.turn=oppRole;battle.log+="\n"+mine.name+" は防御態勢！";send({type:"state",battle});renderBattle();return;
- }
- const guarding=oppRole==="host"?battle.hostGuard:battle.guestGuard;
- let mult=kind==="special"?1.45:1;let dmg=Math.max(7,Math.round((mine.atk*(.82+Math.random()*.36)-opp.def*.30)*mult*(guarding?.58:1)));
- let crit=Math.random()*100<mine.crit;if(crit)dmg=Math.round(dmg*1.5);
- if(oppRole==="host"){battle.hostHp=Math.max(0,battle.hostHp-dmg);battle.hostGuard=false}else{battle.guestHp=Math.max(0,battle.guestHp-dmg);battle.guestGuard=false}
- battle.log+="\n"+(kind==="special"?"✨ "+mine.special+"！":mine.name+" の攻撃！")+" "+dmg+"ダメージ"+(crit?" 💥会心！":"");
- if(hpFor(oppRole)<=0)battle.winner=role;else battle.turn=oppRole;
- send({type:"state",battle});renderBattle();
-}
-async function startCamera(){
- if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia){$("secureMsg").classList.remove("hidden");$("manualBox").classList.remove("hidden");return}
- if(!("BarcodeDetector" in window)){alert("このブラウザは直接バーコード読取に未対応です。数字入力を使ってね。");$("manualBox").classList.remove("hidden");return}
- try{
-   detector=new BarcodeDetector({formats:["ean_13","ean_8","upc_a","upc_e"]});
-   stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}});$("video").srcObject=stream;$("cameraBox").classList.remove("hidden");await $("video").play();scanLoop();
- }catch(e){alert("カメラを開けませんでした。カメラ権限を確認してね。");}
-}
-async function scanLoop(){
- if(!stream)return;try{let codes=await detector.detect($("video"));if(codes.length){beep();stopCamera();summon(codes[0].rawValue);return}}catch(e){}requestAnimationFrame(scanLoop)
-}
+function mini(f,hp){let pct=Math.max(0,Math.round(hp/f.maxHp*100));return `<div><div style="font-size:44px">${f.avatar}</div><b>${f.name}</b><div class="hp"><div style="width:${pct}%"></div></div><small>${hp}/${f.maxHp}</small></div>`}
+function renderBattle(){if(!battle||!me||!other)return;const oppRole=role==="host"?"guest":"host";$("battleView").innerHTML=mini(me,hpFor(role))+`<div class="vs">VS</div>`+mini(other,hpFor(oppRole));if(battle.winner){$("turnText").textContent=battle.winner===role?"🏆 YOU WIN!":"💀 YOU LOSE...";$("specialBtn").disabled=true}else{$("turnText").textContent="AUTO BATTLE";const used=role==="host"?battle.hostSpecialUsed:battle.guestSpecialUsed;const queued=role==="host"?battle.hostSpecialQueued:battle.guestSpecialQueued;$("specialBtn").disabled=used||queued;$("specialBtn").textContent=used?"✨ 必殺技 使用済み":queued?"✨ 必殺技 待機中…":"✨ 必殺技を放つ！"}$("log").textContent=battle.log;$("log").scrollTop=$("log").scrollHeight}
+function queueSpecial(){if(!battle||battle.winner)return;if(role==="host"){if(battle.hostSpecialUsed||battle.hostSpecialQueued)return;battle.hostSpecialQueued=true;pushState()}else{if(battle.guestSpecialUsed||battle.guestSpecialQueued)return;battle.guestSpecialQueued=true;send({type:"specialRequest"})}renderBattle()}
+function pushState(){send({type:"state",battle});renderBattle()}
+function startAutoBattle(){if(role!=="host")return;clearInterval(battleTimer);battleTimer=setInterval(()=>{if(!battle||battle.winner){clearInterval(battleTimer);return}autoTurn()},850)}
+function autoTurn(){const attRole=battle.turn,defRole=attRole==="host"?"guest":"host";const att=attRole==="host"?me:other,def=defRole==="host"?me:other;const queued=attRole==="host"?battle.hostSpecialQueued:battle.guestSpecialQueued;const used=attRole==="host"?battle.hostSpecialUsed:battle.guestSpecialUsed;const useSpecial=queued&&!used;const crit=Math.random()*100<att.crit;let damage=Math.max(6,Math.round((att.atk*(.78+Math.random()*.42)-def.def*.29)*(useSpecial?1.72:1)*(crit?1.5:1)));if(defRole==="host")battle.hostHp=Math.max(0,battle.hostHp-damage);else battle.guestHp=Math.max(0,battle.guestHp-damage);let line=useSpecial?`✨ ${att.name}の必殺！ ${att.special}！！`:`${att.name}の攻撃！`;line+=` ${damage}ダメージ`;if(crit)line+=" 💥会心！";battle.log+="\n"+line;if(useSpecial){if(attRole==="host"){battle.hostSpecialUsed=true;battle.hostSpecialQueued=false}else{battle.guestSpecialUsed=true;battle.guestSpecialQueued=false}}if(hpFor(defRole)<=0){battle.winner=attRole;battle.log+=`\n\n🏆 ${att.name} WIN！`}else{battle.turn=defRole;battle.round++;if(battle.round>60){battle.winner=battle.hostHp>=battle.guestHp?"host":"guest";battle.log+="\n\n⏱️ 判定決着！"}}pushState()}
+async function startCamera(){if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia){$("secureMsg").classList.remove("hidden");$("manualBox").classList.remove("hidden");return}if(!("BarcodeDetector" in window)){alert("このブラウザは直接バーコード読取に未対応です。数字入力を使ってね。");$("manualBox").classList.remove("hidden");return}try{const supported=await BarcodeDetector.getSupportedFormats();const formats=["ean_13","ean_8","upc_a","upc_e","code_128"].filter(x=>supported.includes(x));detector=new BarcodeDetector({formats:formats.length?formats:["ean_13"]});stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}});$("video").srcObject=stream;$("cameraBox").classList.remove("hidden");await $("video").play();scanLoop()}catch(e){alert("カメラを開けませんでした。カメラ権限を確認してね。")}}
+async function scanLoop(){if(!stream)return;try{let codes=await detector.detect($("video"));if(codes.length){beep();stopCamera();summon(codes[0].rawValue);return}}catch(e){}requestAnimationFrame(scanLoop)}
 function beep(){const A=new(window.AudioContext||window.webkitAudioContext)(),o=A.createOscillator(),g=A.createGain();o.frequency.value=1500;g.gain.setValueAtTime(.12,A.currentTime);g.gain.exponentialRampToValueAtTime(.001,A.currentTime+.12);o.connect(g);g.connect(A.destination);o.start();o.stop(A.currentTime+.12)}
 function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$("cameraBox").classList.add("hidden")}
-
-$("createBtn").onclick=createRoom;$("joinShowBtn").onclick=()=>$("joinBox").classList.toggle("hidden");$("joinBtn").onclick=joinRoom;
-$("manualBtn").onclick=()=>$("manualBox").classList.toggle("hidden");$("summonBtn").onclick=()=>summon($("manualCode").value);
-$("cameraBtn").onclick=startCamera;$("stopCam").onclick=stopCamera;$("actions").querySelectorAll("button").forEach(b=>b.onclick=()=>act(b.dataset.act));
+$("createBtn").onclick=createRoom;$("joinShowBtn").onclick=()=>$("joinBox").classList.toggle("hidden");$("joinBtn").onclick=joinRoom;$("manualBtn").onclick=()=>$("manualBox").classList.toggle("hidden");$("summonBtn").onclick=()=>summon($("manualCode").value);$("cameraBtn").onclick=startCamera;$("stopCam").onclick=stopCamera;$("specialBtn").onclick=queueSpecial;
 </script>
 </body></html>
