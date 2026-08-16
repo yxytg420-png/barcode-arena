@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>BARCODE ARENA</title>
 <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
 <style>
 :root{--bg:#090d14;--panel:#121925;--line:#263246;--text:#f6f8fb;--muted:#94a3b8;--blue:#3b82f6;--red:#ef4444;--gold:#f59e0b;--green:#22c55e;--purple:#a855f7}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#18243a,#090d14 55%);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -15,7 +16,7 @@ button.primary{background:#2563eb}button.green{background:#15803d}button.special
 input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--line);background:#090d14;color:white;text-align:center;font-size:20px;letter-spacing:.12em}
 .row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}.hidden{display:none!important}.roomcode{text-align:center;font-size:48px;font-weight:900;color:var(--gold);letter-spacing:.2em}
 .fighter{text-align:center}.avatar{font-size:70px}.name{font-size:25px;font-weight:900}.tag{display:inline-block;padding:5px 10px;background:#263246;border-radius:999px;margin:3px}
-.rarity{font-size:13px;font-weight:900}.R{color:#cbd5e1}.SR{color:#60a5fa}.SSR{color:#fbbf24}.UR{color:#f472b6}
+.rarity{font-size:13px;font-weight:900}.R{color:#cbd5e1}.SR{color:#60a5fa}.SSR{color:#fbbf24}.UR{color:#f472b6}.LEGEND{color:#f59e0b}.SECRET{color:#f0abfc}.rareflash{font-size:28px;font-weight:900;text-align:center;padding:12px;border:1px solid var(--line);border-radius:12px;margin:10px 0}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.stat{background:#090d14;border:1px solid var(--line);border-radius:10px;padding:8px}.stat b{display:block;font-size:19px}
 video{width:100%;border-radius:14px;background:#000;max-height:48vh;object-fit:cover}.battle{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;text-align:center}
 .vs{font-size:25px;font-weight:900;color:var(--gold)}.hp{height:16px;background:#263246;border-radius:999px;overflow:hidden;margin:7px}.hp>div{height:100%;background:#22c55e;transition:.3s}
@@ -24,7 +25,7 @@ video{width:100%;border-radius:14px;background:#000;max-height:48vh;object-fit:c
 </head>
 <body><main>
 <h1>BARCODE ARENA</h1>
-<p class="sub">ピッと召喚。ゆっくり見届けるオートバトル。</p>
+<p class="sub">ピッと召喚。ゆっくり見届けるオートバトル。</p><p class="note">Android Chrome / iPhone Safari対応。iPhoneはSafariの「共有」→「ホーム画面に追加」でアプリ風に起動できます。</p>
 
 <section class="card">
 <h2>1. 対戦部屋</h2>
@@ -39,7 +40,7 @@ video{width:100%;border-radius:14px;background:#000;max-height:48vh;object-fit:c
 <div class="row"><button class="primary" id="cameraBtn">📷 カメラで読む</button><button id="manualBtn">数字を入力</button></div>
 <div id="secureMsg" class="note warn hidden">カメラ読取が使えない場合は数字入力で召喚できます。</div>
 <div id="manualBox" class="hidden"><input id="manualCode" inputmode="numeric" placeholder="JAN / EAN"><div class="row"><button class="green" id="summonBtn">召喚</button></div></div>
-<div id="cameraBox" class="hidden"><video id="video" playsinline></video><div class="row"><button id="stopCam">閉じる</button></div></div>
+<div id="cameraBox" class="hidden"><video id="video" playsinline muted autoplay></video><div id="iosScanner" style="width:100%;min-height:240px;border-radius:14px;overflow:hidden;background:#000" class="hidden"></div><div class="note" style="text-align:center;margin-top:6px">バーコードを横向きに枠いっぱいへ近づけてね。</div><div class="row"><button id="stopCam">閉じる</button></div></div>
 <div id="myFighter" class="fighter hidden"></div>
 <div id="readyControls" class="hidden"><div class="row"><button class="green" id="readyBtn">✅ この戦士で決定！</button></div><div id="readyStatus" class="status" style="text-align:center">決定前なら別のバーコードに変更できます。</div></div>
 </section>
@@ -54,6 +55,18 @@ video{width:100%;border-radius:14px;background:#000;max-height:48vh;object-fit:c
 </section>
 
 <section class="card"><div class="note">キャラクターはバーコードから「種族・職業・武器・属性・レアリティ・名前・必殺技」を組み合わせて生成。名前だけでも576通り、外見や職業まで含めると膨大な組み合わせになります。</div></section>
+
+<section class="card">
+<h2>4. コレクション</h2>
+<div class="stats">
+  <div class="stat">BP<b id="bpView">0</b></div>
+  <div class="stat">発見数<b id="dexCount">0</b></div>
+  <div class="stat">勝利数<b id="winsView">0</b></div>
+</div>
+<div id="unlockMsg" class="note" style="margin-top:10px">バーコードを発見してBPを集めよう。</div>
+<div class="row"><button id="dexBtn">📖 図鑑を見る</button></div>
+<div id="dexBox" class="hidden"></div>
+</section>
 </main>
 <script>
 const TYPES=[["炎","🔥"],["水","💧"],["雷","⚡"],["風","🌪️"],["鋼","⚙️"],["光","✨"],["闇","🌑"],["草","🌿"],["氷","❄️"],["土","🪨"],["毒","☠️"],["星","🌟"]];
@@ -70,12 +83,72 @@ let lobbyPeer=null,gamePeer=null,conn=null,role=null,room=null,me=null,other=nul
 function hash(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)>>>0}return h>>>0}
 function rnd(s,n){return(hash(s+":"+n)%100000)/100000}
 function pick(a,s,n){return a[Math.floor(rnd(s,n)*a.length)]}
-function rarity(seed){const x=rnd(seed,77);if(x>.985)return["UR",1.16];if(x>.92)return["SSR",1.10];if(x>.70)return["SR",1.05];return["R",1]}
+function rarity(seed){const x=rnd(seed,77);if(x>.9998)return["SECRET",1.28];if(x>.998)return["LEGEND",1.22];if(x>.985)return["UR",1.16];if(x>.92)return["SSR",1.10];if(x>.70)return["SR",1.05];return["R",1]}
 function makeFighter(code){const t=pick(TYPES,code,1),rr=rarity(code),mul=rr[1];return{code,type:t[0],icon:t[1],race:pick(RACES,code,2),job:pick(JOBS,code,3),weapon:pick(WEAPONS,code,4),avatar:pick(BODY,code,5)+pick(WEAPONS,code,4),rarity:rr[0],name:pick(PRE,code,6)+"・"+pick(SUF,code,7),maxHp:Math.round((175+Math.floor(rnd(code,8)*126))*mul),atk:Math.round((42+Math.floor(rnd(code,9)*60))*mul),def:Math.round((32+Math.floor(rnd(code,10)*60))*mul),spd:Math.round((28+Math.floor(rnd(code,11)*72))*mul),crit:5+Math.floor(rnd(code,12)*18),special:pick(SP,code,13)}}
 function randomRoom(){return String(Math.floor(1000+Math.random()*9000))}
 function peerId(code){return"barcode-arena-"+code}
+
+let saveData={bp:0,wins:0,dex:{},levels:{},metalWins:0};
+function loadSave(){try{const s=localStorage.getItem("barcodeArenaV5");if(s)saveData=Object.assign(saveData,JSON.parse(s))}catch(e){}renderSave()}
+function saveGame(){try{localStorage.setItem("barcodeArenaV5",JSON.stringify(saveData))}catch(e){}renderSave()}
+function addBP(n){saveData.bp+=n;saveGame()}
+function registerFighter(f){
+ if(!saveData.dex[f.code]){
+   saveData.dex[f.code]={name:f.name,rarity:f.rarity,type:f.type,avatar:f.avatar,first:new Date().toLocaleDateString("ja-JP")};
+   addBP(20);
+ }
+ saveGame();
+}
+function renderSave(){
+ if(!$("bpView"))return;
+ $("bpView").textContent=saveData.bp;
+ $("dexCount").textContent=Object.keys(saveData.dex||{}).length;
+ $("winsView").textContent=saveData.wins||0;
+ let u=[];
+ if(saveData.bp>=100)u.push("特殊探索Ⅰ 解放");
+ if(saveData.bp>=500)u.push("レア遭遇率UP 解放");
+ if(saveData.bp>=1000)u.push("👑 LEGEND HUNT 解放");
+ if(saveData.bp>=5000)u.push("🌈 MYTHIC GATE 解放");
+ $("unlockMsg").textContent=u.length?u.join(" ／ "):"100BPで最初の特殊探索が解放されます。";
+}
+function showDex(){
+ const d=Object.values(saveData.dex||{});
+ $("dexBox").classList.toggle("hidden");
+ $("dexBox").innerHTML=d.length?d.map(x=>`<div style="padding:8px;border-bottom:1px solid var(--line)">${x.avatar} <b>${x.name}</b> <span class="rarity ${x.rarity}">${x.rarity}</span>　${x.type}属性</div>`).join(""):"まだ誰も発見していません。";
+}
+function metalChance(code){
+ let base=.005;
+ if(saveData.bp>=500)base=.008;
+ return rnd(code+":"+Date.now(),991)<base;
+}
+function metalEncounter(){
+ return confirm("✨ RARE ENCOUNTER!!\n\n🫧 スライムメタルが現れた！\nHP 8 / DEF 999 / SPD 250\n\n逃げる前に挑戦する？");
+}
+function fightMetal(){
+ let hits=0;
+ for(let i=0;i<3;i++){
+   if(Math.random()<.22)hits++;
+ }
+ if(hits>=1){
+   alert("💥 会心の一撃！\nスライムメタルを倒した！\nBP +500！");
+   saveData.metalWins=(saveData.metalWins||0)+1;addBP(500);
+ }else{
+   alert("💨 スライムメタルは逃げ出した！");
+ }
+}
+function battleEvent(){
+ const ev=[
+  {name:"🌩️ 雷鳴の戦場",txt:"会心率が上昇！",crit:1.7,dmg:1},
+  {name:"🌑 闇夜",txt:"攻撃のブレが大きくなる！",crit:1,dmg:1.18},
+  {name:"🔥 灼熱地帯",txt:"全員の攻撃力が少し上昇！",crit:1,dmg:1.12},
+  {name:"🍀 幸運の風",txt:"奇跡の一撃が起こりやすい！",crit:1.25,dmg:1},
+  {name:"🌌 静寂の平原",txt:"特殊効果なし。実力勝負！",crit:1,dmg:1}
+ ];
+ return ev[Math.floor(Math.random()*ev.length)];
+}
+let currentEvent=null;
 function init(){try{lobbyPeer=new Peer();lobbyPeer.on("open",()=>{$("netStatus").textContent="通信準備OK";$("createBtn").disabled=false;$("joinShowBtn").disabled=false});lobbyPeer.on("error",()=>{$("netStatus").textContent="通信サービスに接続できませんでした。"})}catch(e){$("netStatus").textContent="通信ライブラリを読み込めませんでした。"}}
-init();
+init();loadSave();
 function destroyLobby(){try{lobbyPeer&&lobbyPeer.destroy()}catch(e){}lobbyPeer=null}
 function createRoom(){room=randomRoom();role="host";destroyLobby();gamePeer=new Peer(peerId(room));$("roomInfo").classList.remove("hidden");$("roomCodeView").textContent=room;$("roomStatus").textContent="部屋を作成中…";gamePeer.on("open",()=>{$("roomStatus").textContent="相手を待っています…";$("scanCard").classList.remove("hidden")});gamePeer.on("connection",c=>{if(conn&&conn.open){c.close();return}setupConnection(c)});gamePeer.on("error",e=>{if(e.type==="unavailable-id"){try{gamePeer.destroy()}catch(x){}return createRoom()}$("roomStatus").textContent="通信エラー: "+e.type})}
 function joinRoom(){const c=$("joinCode").value.replace(/\D/g,"");if(c.length!==4)return alert("4桁のコードを入力してね。");room=c;role="guest";destroyLobby();gamePeer=new Peer();gamePeer.on("open",()=>{setupConnection(gamePeer.connect(peerId(room),{reliable:true}));$("roomInfo").classList.remove("hidden");$("roomCodeView").textContent=room;$("roomStatus").textContent="接続しています…";$("scanCard").classList.remove("hidden")});gamePeer.on("error",()=>{$("roomStatus").textContent="接続できませんでした。コードを確認してね。"})}
@@ -95,7 +168,7 @@ function summon(code){
  code=(code||"").replace(/\D/g,"");
  if(code.length<6)return alert("バーコード番号が短すぎます。");
  if(battleStarted)return alert("この対戦はもう始まっています。");
- me=makeFighter(code);myReady=false;showMine();
+ me=makeFighter(code);myReady=false;registerFighter(me);showMine();if((me.rarity==="LEGEND"||me.rarity==="SECRET"))setTimeout(()=>alert((me.rarity==="SECRET"?"🌈 SECRET CHARACTER FOUND!!":"👑 LEGEND FOUND!!")+"\n\n"+me.name),150);else if(metalChance(code)&&metalEncounter())setTimeout(fightMetal,200);
  $("readyControls").classList.remove("hidden");
  send({type:"fighter",fighter:me});send({type:"unready",fighter:me});updateReadyUI();
 }
@@ -125,8 +198,9 @@ function runCountdown(isHost){
 }
 function beginBattle(){
  if(role!=="host"||battleStarted)return;battleStarted=true;
+ currentEvent=battleEvent();alert(currentEvent.name+"\n"+currentEvent.txt);
  const first=me.spd>=other.spd?"host":"guest";
- battle={hostHp:me.maxHp,guestHp:other.maxHp,turn:first,round:1,hostSpecialUsed:false,guestSpecialUsed:false,hostSpecialQueued:false,guestSpecialQueued:false,log:"⚔️ BATTLE START！",winner:null};
+ battle={hostHp:me.maxHp,guestHp:other.maxHp,turn:first,round:1,hostSpecialUsed:false,guestSpecialUsed:false,hostSpecialQueued:false,guestSpecialQueued:false,log:"⚔️ BATTLE START！\n"+currentEvent.name+" — "+currentEvent.txt,winner:null,event:currentEvent};
  send({type:"start",battle,other:me});showBattle();startAutoBattle();
 }
 function showBattle(){$("battleCard").classList.remove("hidden");renderBattle()}
@@ -136,11 +210,62 @@ function renderBattle(){if(!battle||!me||!other)return;const oppRole=role==="hos
 function queueSpecial(){if(!battle||battle.winner)return;if(role==="host"){if(battle.hostSpecialUsed||battle.hostSpecialQueued)return;battle.hostSpecialQueued=true;pushState()}else{if(battle.guestSpecialUsed||battle.guestSpecialQueued)return;battle.guestSpecialQueued=true;send({type:"specialRequest"})}renderBattle()}
 function pushState(){send({type:"state",battle});renderBattle()}
 function startAutoBattle(){if(role!=="host")return;clearInterval(battleTimer);battleTimer=setInterval(()=>{if(!battle||battle.winner){clearInterval(battleTimer);return}autoTurn()},1800)}
-function autoTurn(){const attRole=battle.turn,defRole=attRole==="host"?"guest":"host";const att=attRole==="host"?me:other,def=defRole==="host"?me:other;const queued=attRole==="host"?battle.hostSpecialQueued:battle.guestSpecialQueued;const used=attRole==="host"?battle.hostSpecialUsed:battle.guestSpecialUsed;const useSpecial=queued&&!used;const crit=Math.random()*100<att.crit;let damage=Math.max(6,Math.round((att.atk*(.78+Math.random()*.42)-def.def*.29)*(useSpecial?1.72:1)*(crit?1.5:1)));if(defRole==="host")battle.hostHp=Math.max(0,battle.hostHp-damage);else battle.guestHp=Math.max(0,battle.guestHp-damage);let line=useSpecial?`✨ ${att.name}の必殺！ ${att.special}！！`:`${att.name}の攻撃！`;line+=` ${damage}ダメージ`;if(crit)line+=" 💥会心！";battle.log+="\n"+line;if(useSpecial){if(attRole==="host"){battle.hostSpecialUsed=true;battle.hostSpecialQueued=false}else{battle.guestSpecialUsed=true;battle.guestSpecialQueued=false}}if(hpFor(defRole)<=0){battle.winner=attRole;battle.log+=`\n\n🏆 ${att.name} WIN！`}else{battle.turn=defRole;battle.round++;if(battle.round>60){battle.winner=battle.hostHp>=battle.guestHp?"host":"guest";battle.log+="\n\n⏱️ 判定決着！"}}pushState()}
-async function startCamera(){if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia){$("secureMsg").classList.remove("hidden");$("manualBox").classList.remove("hidden");return}if(!("BarcodeDetector" in window)){alert("このブラウザは直接バーコード読取に未対応です。数字入力を使ってね。");$("manualBox").classList.remove("hidden");return}try{const supported=await BarcodeDetector.getSupportedFormats();const formats=["ean_13","ean_8","upc_a","upc_e","code_128"].filter(x=>supported.includes(x));detector=new BarcodeDetector({formats:formats.length?formats:["ean_13"]});stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}});$("video").srcObject=stream;$("cameraBox").classList.remove("hidden");await $("video").play();scanLoop()}catch(e){alert("カメラを開けませんでした。カメラ権限を確認してね。")}}
-async function scanLoop(){if(!stream)return;try{let codes=await detector.detect($("video"));if(codes.length){beep();stopCamera();summon(codes[0].rawValue);return}}catch(e){}requestAnimationFrame(scanLoop)}
+function autoTurn(){const attRole=battle.turn,defRole=attRole==="host"?"guest":"host";const att=attRole==="host"?me:other,def=defRole==="host"?me:other;const queued=attRole==="host"?battle.hostSpecialQueued:battle.guestSpecialQueued;const used=attRole==="host"?battle.hostSpecialUsed:battle.guestSpecialUsed;const useSpecial=queued&&!used;const ev=battle.event||{crit:1,dmg:1};const miss=Math.random()<.08;if(miss){battle.log+="\n"+att.name+"の攻撃！ MISS!!";battle.turn=defRole;battle.round++;pushState();return}const miracle=Math.random()<.025;const crit=Math.random()*100<(att.crit*ev.crit);let damage=Math.max(6,Math.round((att.atk*(.70+Math.random()*.60)-def.def*.29)*(useSpecial?(Math.random()<.10?.45:(Math.random()<.18?2.35:1.72)):1)*(crit?1.5:1)*(miracle?2.4:1)*ev.dmg));if(defRole==="host")battle.hostHp=Math.max(0,battle.hostHp-damage);else battle.guestHp=Math.max(0,battle.guestHp-damage);let line=useSpecial?`✨ ${att.name}の必殺！ ${att.special}！！`:`${att.name}の攻撃！`;line+=` ${damage}ダメージ`;if(crit)line+=" 💥会心！";if(miracle)line+=" 🌟奇跡の一撃！！";battle.log+="\n"+line;if(hpFor(attRole)<att.maxHp*.25&&Math.random()<.12){battle.log+="\n🔥 "+att.name+"が瀕死の覚醒！";if(attRole==="host")battle.hostHp=Math.min(att.maxHp,battle.hostHp+25);else battle.guestHp=Math.min(att.maxHp,battle.guestHp+25)}if(Math.random()<.10&&!useSpecial&&hpFor(defRole)>0){let extra=Math.max(4,Math.round(damage*.45));if(defRole==="host")battle.hostHp=Math.max(0,battle.hostHp-extra);else battle.guestHp=Math.max(0,battle.guestHp-extra);battle.log+="\n⚡ 連続攻撃！ "+extra+"ダメージ"}if(useSpecial){if(attRole==="host"){battle.hostSpecialUsed=true;battle.hostSpecialQueued=false}else{battle.guestSpecialUsed=true;battle.guestSpecialQueued=false}}if(hpFor(defRole)<=0){battle.winner=attRole;battle.log+=`\n\n🏆 ${att.name} WIN！`;if(attRole==="host"){saveData.wins++;addBP(10)}else addBP(5)}else{battle.turn=defRole;battle.round++;if(battle.round>60){battle.winner=battle.hostHp>=battle.guestHp?"host":"guest";battle.log+="\n\n⏱️ 判定決着！"}}pushState()}
+let quaggaRunning=false;
+function isIOS(){return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)}
+async function startCamera(){
+ if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia){
+   $("secureMsg").classList.remove("hidden");$("manualBox").classList.remove("hidden");return
+ }
+ $("cameraBox").classList.remove("hidden");
+ if("BarcodeDetector" in window && !isIOS()){
+   try{
+     const supported=await BarcodeDetector.getSupportedFormats();
+     const formats=["ean_13","ean_8","upc_a","upc_e","code_128"].filter(x=>supported.includes(x));
+     detector=new BarcodeDetector({formats:formats.length?formats:["ean_13"]});
+     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}},audio:false});
+     $("video").classList.remove("hidden");$("iosScanner").classList.add("hidden");
+     $("video").srcObject=stream;await $("video").play();scanLoop();return
+   }catch(e){}
+ }
+ if(window.Quagga){
+   $("video").classList.add("hidden");$("iosScanner").classList.remove("hidden");
+   try{
+     await new Promise((resolve,reject)=>Quagga.init({
+       inputStream:{type:"LiveStream",target:$("iosScanner"),constraints:{facingMode:"environment",width:{min:640,ideal:1280},height:{min:480,ideal:720}}},
+       locator:{patchSize:"medium",halfSample:true},
+       numOfWorkers:navigator.hardwareConcurrency?Math.min(4,navigator.hardwareConcurrency):2,
+       frequency:10,
+       decoder:{readers:["ean_reader","ean_8_reader","upc_reader","upc_e_reader","code_128_reader"]},
+       locate:true
+     },err=>err?reject(err):resolve()));
+     quaggaRunning=true;
+     Quagga.offDetected(onQuaggaDetected);Quagga.onDetected(onQuaggaDetected);Quagga.start();return
+   }catch(e){}
+ }
+ $("cameraBox").classList.add("hidden");
+ $("manualBox").classList.remove("hidden");
+ alert("カメラ読取を開始できませんでした。Safari/Chromeのカメラ許可を確認してね。数字入力でも遊べます。")
+}
+function onQuaggaDetected(result){
+ const code=result?.codeResult?.code;
+ if(!code)return;
+ beep();stopCamera();summon(code);
+}
+async function scanLoop(){
+ if(!stream)return;
+ try{
+   let codes=await detector.detect($("video"));
+   if(codes.length){beep();stopCamera();summon(codes[0].rawValue);return}
+ }catch(e){}
+ requestAnimationFrame(scanLoop)
+}
 function beep(){const A=new(window.AudioContext||window.webkitAudioContext)(),o=A.createOscillator(),g=A.createGain();o.frequency.value=1500;g.gain.setValueAtTime(.12,A.currentTime);g.gain.exponentialRampToValueAtTime(.001,A.currentTime+.12);o.connect(g);g.connect(A.destination);o.start();o.stop(A.currentTime+.12)}
-function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$("cameraBox").classList.add("hidden")}
-$("createBtn").onclick=createRoom;$("joinShowBtn").onclick=()=>$("joinBox").classList.toggle("hidden");$("joinBtn").onclick=joinRoom;$("manualBtn").onclick=()=>$("manualBox").classList.toggle("hidden");$("summonBtn").onclick=()=>summon($("manualCode").value);$("cameraBtn").onclick=startCamera;$("stopCam").onclick=stopCamera;$("specialBtn").onclick=queueSpecial;$("readyBtn").onclick=confirmReady;$("startBattleBtn").onclick=requestBattleStart;
+function stopCamera(){
+ if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+ if(quaggaRunning&&window.Quagga){try{Quagga.stop();Quagga.offDetected(onQuaggaDetected)}catch(e){}quaggaRunning=false}
+ $("video").srcObject=null;$("cameraBox").classList.add("hidden");$("iosScanner").classList.add("hidden");$("video").classList.remove("hidden")
+}
+$("createBtn").onclick=createRoom;$("joinShowBtn").onclick=()=>$("joinBox").classList.toggle("hidden");$("joinBtn").onclick=joinRoom;$("manualBtn").onclick=()=>$("manualBox").classList.toggle("hidden");$("summonBtn").onclick=()=>summon($("manualCode").value);$("cameraBtn").onclick=startCamera;$("stopCam").onclick=stopCamera;$("specialBtn").onclick=queueSpecial;$("readyBtn").onclick=confirmReady;$("startBattleBtn").onclick=requestBattleStart;$("dexBtn").onclick=showDex;
 </script>
 </body></html>
