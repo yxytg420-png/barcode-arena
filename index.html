@@ -39,7 +39,7 @@
 .retro-command .wager-btn:disabled{opacity:.35}
 </style><script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script><script src="https://unpkg.com/@zxing/browser@0.2.0"></script>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / CAMERA FIX v10.5</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / CAMERA FIX v10.6</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">帳面</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><video id="camera" class="camera" playsinline muted></video><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div></div></section>
 <section id="battle" class="page">
@@ -278,25 +278,22 @@ async function startCamera(){
   scanning=true;
 
   try{
-    // BrowserMultiFormatOneDReader is dedicated to EAN/JAN/UPC/Code128 etc.
-    zxingReader=new ZXingBrowser.BrowserMultiFormatOneDReader({
-      delayBetweenScanAttempts:120,
-      delayBetweenScanSuccess:300
-    });
-
-    const devices=await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
-    let deviceId=undefined;
-
-    // Prefer a rear/environment camera when labels are available.
-    if(devices?.length){
-      const rear=devices.find(d=>/back|rear|environment|背面|外側/i.test(d.label||''));
-      deviceId=(rear||devices[devices.length-1]).deviceId;
-    }
+    // v10.6: construct with no arguments.
+    // The first constructor argument is decoding hints (Map), not an options object.
+    zxingReader=new ZXingBrowser.BrowserMultiFormatOneDReader();
 
     $('cameraStatus').textContent='バーコード全体を横向きに映してください。';
 
-    zxingControls=await zxingReader.decodeFromVideoDevice(
-      deviceId,
+    // Let the browser choose the proper rear camera via media constraints.
+    zxingControls=await zxingReader.decodeFromConstraints(
+      {
+        audio:false,
+        video:{
+          facingMode:{ideal:'environment'},
+          width:{ideal:1280},
+          height:{ideal:720}
+        }
+      },
       video,
       (result,error,controls)=>{
         if(!scanning)return;
@@ -319,7 +316,7 @@ async function startCamera(){
         }
 
         // NotFoundException during scanning is normal.
-        $('cameraStatus').textContent='読み取り中… バーコードを画面の中央に大きく、横向きで映してください。';
+        $('cameraStatus').textContent='読み取り中… JAN/EANの数字部分まで画面中央に大きく映し、1〜2秒止めてください。';
       }
     );
   }catch(e){
