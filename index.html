@@ -34,9 +34,12 @@
  .retro-status-row{gap:6px}
  .retro-msg{min-height:142px;padding:12px}
 }
+.auto-battle-note{margin-top:10px;color:#bbb;font-size:13px}
+.retro-command .wager-btn{border-color:#ffe39a;color:#ffe39a}
+.retro-command .wager-btn:disabled{opacity:.35}
 </style><script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script><script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / CROSS-DEVICE RETRO v9</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / AUTO BATTLE v10</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">帳面</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><video id="camera" class="camera" playsinline muted></video><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div></div></section>
 <section id="battle" class="page">
@@ -51,11 +54,12 @@
     <div class="line">&nbsp;</div><div class="line">&nbsp;</div><div class="line">&nbsp;</div>
   </div>
   <div class="retro-command">
-    <button id="attackBtn">たたかう</button>
-    <button id="skillBtn">ひっさつ</button>
+    <button id="attackBtn">BATTLE START</button>
+    <button id="skillBtn" class="wager-btn">勝負！</button>
     <button id="newEnemyBtn">あいてを かえる</button>
     <button data-page="summon">しょうかんへ</button>
   </div>
+  <div class="auto-battle-note">BATTLE START後は決着まで自動。「勝負！」は1戦に1回だけ使えます。</div>
 </div>
 </div>
 </section>
@@ -265,29 +269,68 @@ function renderBattle(){
   $('battleStatusRow').innerHTML=retroStatus(player,php,player.hp,'あなた')+retroStatus(enemy,ehp,enemy.hp,'あいて');
   $('battlefield').innerHTML=retroUnit(player)+retroUnit(enemy);
 }
+let autoBattleTimer=null,autoBattleRunning=false,wagerUsed=false,battleTurnPlayer=true;
+function discoveredMonsters(){
+  const seen=new Set(Object.values(mapData()).map(v=>normalizedEntry(v).number).filter(Boolean));
+  return chars.filter(c=>seen.has(c.number));
+}
+function stopAutoBattle(){if(autoBattleTimer)clearTimeout(autoBattleTimer);autoBattleTimer=null;autoBattleRunning=false}
 function newEnemy(){
-  if(!player)return;
-  enemy=randomOf(normal);php=player.hp;ehp=enemy.hp;
-  setBattleMessage([`${escapeHtml(enemy.name)}が あらわれた！`,'&nbsp;','どうする？','▶ コマンドを えらんでください。']);
-  renderBattle();
-}
-function hit(attacker,defender,skill=false){
-  const power=attacker.atk*(skill?1.55:1),guard=defender.def*.38;
-  return Math.max(1,Math.floor(power-guard+Math.random()*12));
-}
-function turn(skill=false){
-  if(!player||!enemy||php<=0||ehp<=0)return;
-  const pd=hit(player,enemy,skill);ehp-=pd;
-  const first=[`${escapeHtml(player.name)}の ${skill?escapeHtml(player.skill):'こうげき'}！`,
-               `${escapeHtml(enemy.name)}に ${pd}の ダメージ！`];
-  if(ehp<=0){
-    discover(enemy);setBattleMessage([...first,`${escapeHtml(enemy.name)}を たおした！`,'あなたの しょうり！']);renderBattle();return;
+  stopAutoBattle();if(!player)return;
+  const found=discoveredMonsters().filter(c=>c.number!==player.number);
+  if(!found.length){
+    enemy=null;php=player.hp;ehp=0;
+    $('battleStatusRow').innerHTML=retroStatus(player,php,player.hp,'あなた');
+    $('battlefield').innerHTML=retroUnit(player);
+    setBattleMessage(['まだ あいてが いません。','&nbsp;','べつの バーコードから','モンスターを みつけよう！']);
+    $('attackBtn').disabled=true;$('skillBtn').disabled=true;return;
   }
-  const ed=hit(enemy,player,false);php-=ed;
-  const last=php<=0?'あなたの モンスターは たおれた。':`${escapeHtml(player.name)}に ${ed}の ダメージ！`;
-  setBattleMessage([...first,`${escapeHtml(enemy.name)}の こうげき！`,last]);
+  enemy=randomOf(found);php=player.hp;ehp=enemy.hp;wagerUsed=false;battleTurnPlayer=true;
+  $('attackBtn').disabled=false;$('skillBtn').disabled=true;$('skillBtn').textContent='勝負！';
+  setBattleMessage([`${escapeHtml(enemy.name)}が あらわれた！`,'&nbsp;','BATTLE STARTを おすと','じどうせんとうが はじまる！']);renderBattle();
+}
+function hit(attacker,defender,mult=1){
+  return Math.max(1,Math.floor(attacker.atk*mult*(.82+Math.random()*.36)-defender.def*.34));
+}
+function startAutoBattle(){
+  if(!player||!enemy||autoBattleRunning)return;
+  if(php<=0||ehp<=0){newEnemy();return}
+  autoBattleRunning=true;wagerUsed=false;battleTurnPlayer=true;
+  $('attackBtn').disabled=true;$('skillBtn').disabled=false;
+  setBattleMessage(['BATTLE START！','&nbsp;',`${escapeHtml(player.name)} VS`,`${escapeHtml(enemy.name)}`]);
+  autoBattleTimer=setTimeout(autoBattleStep,1800);
+}
+function finishLocalBattle(win){
+  stopAutoBattle();$('attackBtn').disabled=false;$('skillBtn').disabled=true;
+  if(win){setBattleMessage([`${escapeHtml(enemy.name)}を たおした！`,'&nbsp;',`${escapeHtml(player.name)}の`,'しょうり！'])}
+  else{setBattleMessage([`${escapeHtml(player.name)}は たおれた。`,'&nbsp;',`${escapeHtml(enemy.name)}の`,'しょうり！'])}
   renderBattle();
 }
+function autoBattleStep(){
+  if(!autoBattleRunning||!player||!enemy)return;
+  const a=battleTurnPlayer?player:enemy,d=battleTurnPlayer?enemy:player;
+  const miss=Math.random()<.08,crit=Math.random()<.12,miracle=Math.random()<.025;
+  const dmg=miss?0:hit(a,d,(crit?1.55:1)*(miracle?2.25:1));
+  if(battleTurnPlayer)ehp=Math.max(0,ehp-dmg);else php=Math.max(0,php-dmg);
+  setBattleMessage([`${escapeHtml(a.name)}の こうげき！`,miracle?'きせきの いちげき！':crit?'かいしんの いちげき！':'&nbsp;',miss?`${escapeHtml(d.name)}は ひらりと かわした！`:`${escapeHtml(d.name)}に ${dmg}の ダメージ！`,'&nbsp;']);
+  renderBattle();
+  if(ehp<=0){finishLocalBattle(true);return} if(php<=0){finishLocalBattle(false);return}
+  battleTurnPlayer=!battleTurnPlayer;autoBattleTimer=setTimeout(autoBattleStep,2600);
+}
+function useWager(){
+  if(!autoBattleRunning||wagerUsed||!player||!enemy)return;
+  wagerUsed=true;$('skillBtn').disabled=true;$('skillBtn').textContent='勝負！ 使用済み';
+  if(Math.random()<.55){
+    const dmg=Math.max(18,Math.floor(player.atk*(1.7+Math.random()*.8)));ehp=Math.max(0,ehp-dmg);
+    setBattleMessage(['勝負！','だいせいこう！',`${escapeHtml(enemy.name)}に ${dmg}の ダメージ！`,'&nbsp;']);renderBattle();
+    if(ehp<=0)finishLocalBattle(true);
+  }else{
+    const dmg=Math.max(12,Math.floor(player.hp*(.18+Math.random()*.18)));php=Math.max(0,php-dmg);
+    setBattleMessage(['勝負！','しっぱい！',`${escapeHtml(player.name)}に ${dmg}の ダメージ！`,'ピンチ！']);renderBattle();
+    if(php<=0)finishLocalBattle(false);
+  }
+}
+function turn(skill=false){if(skill)useWager();else startAutoBattle()}
 function renderDex(){const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]')),mode=$('filter').value;let list=chars;if(mode==='found')list=chars.filter(c=>found.has(c.number));if(mode==='missing')list=chars.filter(c=>!found.has(c.number));$('count').textContent=`${found.size} / ${chars.length}`;$('book').innerHTML=list.map(c=>found.has(c.number)?`<article class="mini"><img src="${c.image}" alt="${c.name}"><b>${String(c.number).padStart(3,'0')} ${c.name}</b><small>${c.rarity}・${c.element}</small></article>`:`<article class="mini"><div class="unknown">？</div><b>${String(c.number).padStart(3,'0')} ミハツケン</b><small>？？？</small></article>`).join('')}
 function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
 function renderCodeBook(){const map=mapData(),q=$('codeSearch').value.trim().toLowerCase();const rows=Object.entries(map).map(([code,v])=>{const e=normalizedEntry(v),c=chars.find(x=>x.number===e.number);return {code,e,c}}).filter(x=>x.c&&`${x.code} ${x.c.name} ${x.e.note||''}`.toLowerCase().includes(q)).sort((a,b)=>(b.e.discoveredAt||'').localeCompare(a.e.discoveredAt||''));$('codeCount').textContent=`${Object.keys(map).length}件`;$('codeBook').innerHTML=rows.length?rows.map(({code,e,c})=>`<article class="code-entry"><img src="${c.image}" alt="${c.name}"><div><b>${c.name}</b><small>No.${String(c.number).padStart(3,'0')}・${c.rarity}</small><code>${code}</code><small>${e.discoveredAt?new Date(e.discoveredAt).toLocaleString('ja-JP'):'発見日時なし'}</small><input class="code-note" data-code="${code}" value="${escapeHtml(e.note||'')}" placeholder="商品名・場所などをメモ"></div></article>`).join(''):'<div class="panel status">まだバーコードの記録がありません。</div>';document.querySelectorAll('.code-note').forEach(i=>i.onchange=()=>{const m=mapData(),e=normalizedEntry(m[i.dataset.code]);e.note=i.value.slice(0,80);m[i.dataset.code]=e;localStorage.setItem(mapKey,JSON.stringify(m))})}
