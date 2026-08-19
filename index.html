@@ -37,9 +37,9 @@
 .auto-battle-note{margin-top:10px;color:#bbb;font-size:13px}
 .retro-command .wager-btn{border-color:#ffe39a;color:#ffe39a}
 .retro-command .wager-btn:disabled{opacity:.35}
-</style><script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script><script src="https://unpkg.com/@zxing/library@0.23.0/umd/index.min.js"></script>
+</style><script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script><script src="https://unpkg.com/@zxing/browser@0.2.0"></script>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / CAMERA FIX v10.4</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / CAMERA FIX v10.5</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">帳面</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><video id="camera" class="camera" playsinline muted></video><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div></div></section>
 <section id="battle" class="page">
@@ -230,14 +230,17 @@ async function imageBlob(src){const res=await fetch(src);if(!res.ok)throw Error(
 async function saveSprite(c){try{await shareOrSave(await imageBlob(c.image),`BA_${String(c.number).padStart(3,'0')}_${c.name}.png`,c.name)}catch(e){const a=document.createElement('a');a.href=c.image;a.download=`BA_${String(c.number).padStart(3,'0')}_${c.name}.png`;a.click()}}
 async function saveCard(c,code){const canvas=document.createElement('canvas');canvas.width=768;canvas.height=1080;const x=canvas.getContext('2d');x.imageSmoothingEnabled=false;x.fillStyle='#050709';x.fillRect(0,0,768,1080);x.strokeStyle='#f3bf3f';x.lineWidth=6;x.strokeRect(24,24,720,1032);x.fillStyle='#f3bf3f';x.font='bold 34px monospace';x.textAlign='center';x.fillText('BARCODE ARENA',384,78);const im=new Image();im.src=c.image;await im.decode();x.fillStyle='#000';x.fillRect(104,112,560,560);x.drawImage(im,104,112,560,560);x.fillStyle='#fff';x.font='bold 42px sans-serif';x.fillText(`No.${String(c.number).padStart(3,'0')}  ${c.name}`,384,742);x.fillStyle='#f3bf3f';x.font='28px monospace';x.fillText(`${c.rarity} / ${c.element}`,384,794);x.fillStyle='#c7d7ff';x.font='25px monospace';x.fillText(`HP ${c.hp}  ATK ${c.atk}  DEF ${c.def}  SPD ${c.spd}`,384,846);x.fillStyle='#f3bf3f';x.fillText(`必殺技「${c.skill}」`,384,904);x.fillStyle='#757575';x.font='20px monospace';x.fillText(code?`CODE ${code}`:'DISCOVERED',384,970);const blob=await new Promise(r=>canvas.toBlob(r,'image/png'));await shareOrSave(blob,`BA_CARD_${String(c.number).padStart(3,'0')}_${c.name}.png`,`${c.name} 発見カード`)}
 
+
 let zxingReader=null;
+let zxingControls=null;
 
 function stopCamera(){
   scanning=false;
-  if(zxingReader){
-    try{zxingReader.reset()}catch(e){}
-    zxingReader=null;
+  if(zxingControls){
+    try{zxingControls.stop()}catch(e){}
+    zxingControls=null;
   }
+  zxingReader=null;
   if(stream){
     try{stream.getTracks().forEach(t=>t.stop())}catch(e){}
     stream=null;
@@ -254,72 +257,78 @@ async function startCamera(){
   stopCamera();
 
   if(!window.isSecureContext){
-    $('cameraStatus').textContent='カメラはHTTPSで開いてください。GitHub PagesのURLから起動してください。';
+    $('cameraStatus').textContent='カメラはHTTPSで開いてください。';
     return;
   }
   if(!navigator.mediaDevices?.getUserMedia){
     $('cameraStatus').textContent='このブラウザではカメラを利用できません。';
     return;
   }
-  if(!window.ZXing || !ZXing.BrowserMultiFormatReader){
-    $('cameraStatus').textContent='バーコード読取ライブラリを読み込めませんでした。通信状態を確認してください。';
+  if(!window.ZXingBrowser || !ZXingBrowser.BrowserMultiFormatOneDReader){
+    $('cameraStatus').textContent='バーコード読取機能を読み込めませんでした。ページを再読み込みしてください。';
     return;
   }
 
   const video=$('camera');
   video.setAttribute('playsinline','');
-  video.setAttribute('muted','');
   video.setAttribute('autoplay','');
+  video.muted=true;
   video.style.display='block';
+  $('cameraStatus').textContent='カメラを起動しています…';
   scanning=true;
 
   try{
-    zxingReader=new ZXing.BrowserMultiFormatReader(null,300);
+    // BrowserMultiFormatOneDReader is dedicated to EAN/JAN/UPC/Code128 etc.
+    zxingReader=new ZXingBrowser.BrowserMultiFormatOneDReader({
+      delayBetweenScanAttempts:120,
+      delayBetweenScanSuccess:300
+    });
 
-    const constraints={
-      audio:false,
-      video:{
-        facingMode:{ideal:'environment'},
-        width:{ideal:1280},
-        height:{ideal:720}
-      }
-    };
+    const devices=await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
+    let deviceId=undefined;
 
-    $('cameraStatus').textContent='カメラを起動しています… 許可ダイアログが出たら「許可」を押してください。';
+    // Prefer a rear/environment camera when labels are available.
+    if(devices?.length){
+      const rear=devices.find(d=>/back|rear|environment|背面|外側/i.test(d.label||''));
+      deviceId=(rear||devices[devices.length-1]).deviceId;
+    }
 
-    // ZXing itself owns the camera stream and continuous decoding.
-    await zxingReader.decodeFromConstraints(
-      constraints,
+    $('cameraStatus').textContent='バーコード全体を横向きに映してください。';
+
+    zxingControls=await zxingReader.decodeFromVideoDevice(
+      deviceId,
       video,
-      (result,err)=>{
+      (result,error,controls)=>{
         if(!scanning)return;
 
         if(result){
-          const value=String(result.getText ? result.getText() : result.text || '')
+          const value=String(result.getText ? result.getText() : '')
             .replace(/\D/g,'');
 
           if(value.length>=4){
-            $('cameraStatus').textContent='読み取りました！';
             $('code').value=value;
-            stopCamera();
-            summon(value);
+            $('cameraStatus').textContent=`読み取り成功：${value}`;
+            scanning=false;
+            try{controls?.stop()}catch(e){}
+            zxingControls=null;
+            zxingReader=null;
+            // Let the success text paint before summoning.
+            setTimeout(()=>{ stopCamera(); summon(value); },150);
           }
           return;
         }
 
-        // NotFound during normal scanning is expected; do not surface it.
-        $('cameraStatus').textContent='バーコード全体を横向きに映し、10〜20cmほど離して少し止めてください。';
+        // NotFoundException during scanning is normal.
+        $('cameraStatus').textContent='読み取り中… バーコードを画面の中央に大きく、横向きで映してください。';
       }
     );
   }catch(e){
     stopCamera();
-    const name=e?.name||'ERROR';
-    const msg=e?.message||'';
-    $('cameraStatus').textContent=`カメラ読取を開始できません（${name}）。${msg}`;
+    $('cameraStatus').textContent=`読取開始エラー：${e?.name||'ERROR'} ${e?.message||''}`;
   }
 }
 
-// Kept only so older event paths do not break.
+// Legacy function retained so old event paths never fail.
 async function scanLoop(){ return; }
 
 function retroStatus(c,hp,max,label){
