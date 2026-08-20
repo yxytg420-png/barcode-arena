@@ -39,7 +39,7 @@
 .retro-command .wager-btn:disabled{opacity:.35}
 </style><script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script><script src="https://unpkg.com/@zxing/browser@0.2.0"></script>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / SIMPLE CAMERA v10.7</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / AUTOFOCUS v10.8</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">帳面</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><video id="camera" class="camera" playsinline muted></video><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div></div></section>
 <section id="battle" class="page">
@@ -274,12 +274,35 @@ async function startCamera(){
   try{
     $('cameraStatus').textContent='カメラを起動しています…';
 
-    // Simple, explicit camera acquisition. This worked reliably before the
-    // scanner was made responsible for opening/managing the camera itself.
     stream = await navigator.mediaDevices.getUserMedia({
       audio:false,
-      video:{facingMode:{ideal:'environment'}}
+      video:{
+        facingMode:{ideal:'environment'},
+        width:{ideal:1920},
+        height:{ideal:1080},
+        frameRate:{ideal:30}
+      }
     });
+
+    const track=stream.getVideoTracks()[0];
+
+    try{
+      const caps=track.getCapabilities ? track.getCapabilities() : {};
+      const advanced={};
+
+      if(Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')){
+        advanced.focusMode='continuous';
+      }
+
+      if(typeof caps.zoom==='object' && typeof caps.zoom.min==='number' && typeof caps.zoom.max==='number'){
+        const desired=Math.min(caps.zoom.max, Math.max(caps.zoom.min, 1.35));
+        if(desired>caps.zoom.min) advanced.zoom=desired;
+      }
+
+      if(Object.keys(advanced).length){
+        await track.applyConstraints({advanced:[advanced]});
+      }
+    }catch(e){}
 
     video.setAttribute('playsinline','');
     video.setAttribute('autoplay','');
@@ -288,21 +311,22 @@ async function startCamera(){
     video.style.display='block';
     await video.play();
 
+    $('cameraStatus').textContent='ピントを合わせています… バーコードから15cm前後離してください。';
+    await new Promise(r=>setTimeout(r,700));
+
     scanning=true;
-    $('cameraStatus').textContent='読み取り中… バーコードを中央に映してください。';
+    $('cameraStatus').textContent='読み取り中… バーコードを中央に大きく映し、1〜2秒止めてください。';
 
     zxingReader = new ZXingBrowser.BrowserMultiFormatOneDReader();
 
-    // Decode the video element that is already playing. ZXing does not open
-    // or switch cameras here.
     zxingControls = await zxingReader.decodeFromVideoElement(
       video,
       (result,error,controls)=>{
         if(!scanning)return;
         if(result){
-          const raw = result.getText ? result.getText() : '';
-          const value = String(raw).replace(/\D/g,'');
-          if(value.length >= 4){
+          const raw=result.getText ? result.getText() : '';
+          const value=String(raw).replace(/\D/g,'');
+          if(value.length>=4){
             $('code').value=value;
             $('cameraStatus').textContent='読み取り成功：'+value;
             scanning=false;
