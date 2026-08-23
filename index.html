@@ -39,7 +39,7 @@
 .retro-command .wager-btn:disabled{opacity:.35}
 </style><script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script><script src="https://unpkg.com/@zxing/browser@0.2.0"></script>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / JAPANESE NAMES v10.9</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / ONLINE SYNC v10.10</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">帳面</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><video id="camera" class="camera" playsinline muted></video><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div></div></section>
 <section id="battle" class="page">
@@ -449,7 +449,7 @@ const last=Number(localStorage.getItem(lastKey));if(last)player=chars.find(c=>c.
 const $a=id=>document.getElementById(id);
 let ap={bp:0,wins:0};try{ap=Object.assign(ap,JSON.parse(localStorage.getItem("baArenaProgressV7")||"{}"))}catch(e){}
 const save=()=>{localStorage.setItem("baArenaProgressV7",JSON.stringify(ap));$a("arenaBP").textContent=ap.bp;$a("arenaWins").textContent=ap.wins};save();
-let peer=null,conn=null,host=false,ready=false,otherReady=false,room="",myMonster=null,otherMonster=null,timer=null,state=null;
+let peer=null,conn=null,host=false,ready=false,otherReady=false,room="",myMonster=null,otherMonster=null,timer=null,state=null,finishedHandled=false;
 function currentMonster(){
   const title=document.querySelector("#result h2,#result h3,#result strong");
   const imgEl=document.querySelector("#result img");
@@ -466,51 +466,76 @@ function arenaMsg(lines){
   const a=(Array.isArray(lines)?lines:[lines]).slice(0,4);while(a.length<4)a.push("&nbsp;");
   box.innerHTML=a.map(x=>`<div class="line">${x||"&nbsp;"}</div>`).join("");
 }
+function localHP(){return !state?0:(host?state.hostHp:state.guestHp)}
+function otherHP(){return !state?0:(host?state.guestHp:state.hostHp)}
 function renderArenaRetro(){
   if(!myMonster||!otherMonster||!state)return;
   const s=(m,h,max,label)=>`<div class="retro-status"><small>${label}</small><b>${m.name}</b>H ${Math.max(0,h)} / ${max}<br>こうげき ${m.atk}　ぼうぎょ ${m.def}<div class="retro-hpbar"><i style="width:${Math.max(0,Math.min(100,h/max*100))}%"></i></div></div>`;
-  const u=m=>`<div class="retro-unit"><img src="${m.image}" alt=""><div class="retro-name">${m.name}</div></div>`;
-  $a("arenaBattleStatusRow").innerHTML=s(myMonster,state.a,myMonster.hp,"あなた")+s(otherMonster,state.b,otherMonster.hp,"あいて");
-  $a("arenaBattlefield").innerHTML=u(myMonster)+u(otherMonster);
+  const u=(m,label)=>`<div class="retro-unit"><img src="${m.image}" alt=""><div class="retro-name">${label}：${m.name}</div></div>`;
+  $a("arenaBattleStatusRow").innerHTML=s(myMonster,localHP(),myMonster.hp,"じぶん")+s(otherMonster,otherHP(),otherMonster.hp,"あいて");
+  $a("arenaBattlefield").innerHTML=u(myMonster,"じぶん")+u(otherMonster,"あいて");
 }
 function send(x){if(conn&&conn.open)conn.send(x)}
+function localizeLines(lines){
+  return (lines||[]).map(x=>String(x)
+    .replaceAll("{HOST}",host?"じぶん":"あいて")
+    .replaceAll("{GUEST}",host?"あいて":"じぶん"));
+}
+function finishFromState(){
+  if(!state||!state.finished||finishedHandled)return;
+  finishedHandled=true;
+  const iWon=(host&&state.winner==="host")||(!host&&state.winner==="guest");
+  if(iWon){ap.wins++;ap.bp+=10}else ap.bp+=5;
+  save();status(iWon?"しょうり！":"はいぼく…");
+}
 function setup(c){conn=c;c.on("open",()=>{status("接続しました。モンスターを召喚してREADY！");$a("arenaReady").disabled=false});c.on("data",m=>{
  if(m.t==="ready"){otherReady=true;otherMonster=m.m;status("相手READY！ あなたもREADYしてね。");check()}
- if(m.t==="start"){state=m.s;status("3… 2… 1… FIGHT!!");arenaMsg(["3…","2…","1…","BATTLE START！"]);renderArenaRetro();setTimeout(()=>run(false),2700)}
- if(m.t==="state"){state=m.s;status(m.msg);renderArenaRetro();if(m.lines)arenaMsg(m.lines)}
+ if(m.t==="start"){state=m.s;finishedHandled=false;status("3… 2… 1… FIGHT!!");arenaMsg(["3…","2…","1…","BATTLE START！"]);renderArenaRetro()}
+ if(m.t==="state"){
+   state=m.s;renderArenaRetro();
+   const lines=localizeLines(m.lines);
+   if(state.finished){
+     const iWon=(host&&state.winner==="host")||(!host&&state.winner==="guest");
+     lines[3]=iWon?"★ じぶんの しょうり！ ★":"じぶんは まけてしまった…";
+   }
+   arenaMsg(lines);status(state.finished?(((host&&state.winner==="host")||(!host&&state.winner==="guest"))?"しょうり！":"はいぼく…"):m.msg);
+   finishFromState();
+ }
 });}
 function check(){if(ready&&otherReady){status("両者READY！");if(host)$a("arenaStart").disabled=false}}
-$a("arenaCreate").onclick=()=>{room=String(Math.floor(1000+Math.random()*9000));host=true;peer=new Peer("ba182-"+room);peer.on("open",()=>status("対戦コード "+room+" ／ 相手を待っています…"));peer.on("connection",setup)}
-$a("arenaJoin").onclick=()=>{room=$a("arenaCode").value.replace(/\D/g,"");if(room.length!==4)return alert("4桁コードを入力してね");peer=new Peer();peer.on("open",()=>setup(peer.connect("ba182-"+room,{reliable:true})))}
-$a("arenaReady").onclick=()=>{myMonster=currentMonster();if(!myMonster)return alert("先にバーコードをピッ！してモンスターを召喚してね。");ready=true;$a("arenaReady").disabled=true;send({t:"ready",m:myMonster});status("READY！ 相手を待っています…");arenaMsg([myMonster.name+"は READY！","&nbsp;","あいての じゅんびを","まっています…"]);check()}
-$a("arenaStart").onclick=()=>{if(!host||!ready||!otherReady)return;state={a:myMonster.hp,b:otherMonster.hp,turn:myMonster.spd>=otherMonster.spd?"a":"b",n:0};send({t:"start",s:state});status("3… 2… 1… FIGHT!!");arenaMsg(["3…","2…","1…","BATTLE START！"]);renderArenaRetro();setTimeout(()=>run(true),2700)}
+$a("arenaCreate").onclick=()=>{room=String(Math.floor(1000+Math.random()*9000));host=true;ready=false;otherReady=false;finishedHandled=false;peer=new Peer("ba182-"+room);peer.on("open",()=>status("対戦コード "+room+" ／ 相手を待っています…"));peer.on("connection",setup)}
+$a("arenaJoin").onclick=()=>{room=$a("arenaCode").value.replace(/\D/g,"");if(room.length!==4)return alert("4桁コードを入力してね");host=false;ready=false;otherReady=false;finishedHandled=false;peer=new Peer();peer.on("open",()=>setup(peer.connect("ba182-"+room,{reliable:true})))}
+$a("arenaReady").onclick=()=>{myMonster=currentMonster();if(!myMonster)return alert("先にバーコードをピッ！してモンスターを召喚してね。");ready=true;$a("arenaReady").disabled=true;send({t:"ready",m:myMonster});status("READY！ 相手を待っています…");arenaMsg(["じぶんの "+myMonster.name+"は READY！","&nbsp;","あいての じゅんびを","まっています…"]);check()}
+$a("arenaStart").onclick=()=>{if(!host||!ready||!otherReady)return;state={hostHp:myMonster.hp,guestHp:otherMonster.hp,turn:myMonster.spd>=otherMonster.spd?"host":"guest",n:0,finished:false,winner:null};finishedHandled=false;send({t:"start",s:state});status("3… 2… 1… FIGHT!!");arenaMsg(["3…","2…","1…","BATTLE START！"]);renderArenaRetro();setTimeout(()=>run(true),2700)}
 function run(isHost){
   if(!isHost)return;clearInterval(timer);
   const step=()=>{
-    if(!state)return;
-    const am=state.turn==="a"?myMonster:otherMonster,dm=state.turn==="a"?otherMonster:myMonster;
+    if(!state||state.finished)return;
+    const attackerIsHost=state.turn==="host";
+    const am=attackerIsHost?myMonster:otherMonster,dm=attackerIsHost?otherMonster:myMonster;
     const miss=Math.random()<.08,crit=Math.random()<.12,miracle=Math.random()<.025;
     const d=miss?0:Math.max(5,Math.round((am.atk*(.7+Math.random()*.6)-dm.def*.28)*(crit?1.5:1)*(miracle?2.4:1)));
-    if(state.turn==="a")state.b=Math.max(0,state.b-d);else state.a=Math.max(0,state.a-d);
-    const finished=state.a<=0||state.b<=0;
-    const winner=finished?(state.a>0?myMonster:otherMonster):null;
+    if(attackerIsHost)state.guestHp=Math.max(0,state.guestHp-d);else state.hostHp=Math.max(0,state.hostHp-d);
+    const finished=state.hostHp<=0||state.guestHp<=0;
+    if(finished){state.finished=true;state.winner=state.hostHp>0?"host":"guest"}
+    const at=attackerIsHost?"{HOST}":"{GUEST}",dt=attackerIsHost?"{GUEST}":"{HOST}";
     const lines=[
-      `${am.name}の こうげき！`,
+      `${at}の ${am.name}の こうげき！`,
       miracle?'きせきの いちげき！':crit?'かいしんの いちげき！':'&nbsp;',
-      miss?`${dm.name}は ひらりと かわした！`:`${dm.name}に ${d}の ダメージ！`,
-      finished?`${winner.name}の しょうり！`:'&nbsp;'
+      miss?`${dt}の ${dm.name}は ひらりと かわした！`:`${dt}の ${dm.name}に ${d}の ダメージ！`,
+      finished?(state.winner==="host"?"{HOST}の しょうり！":"{GUEST}の しょうり！"):'&nbsp;'
     ];
-    const msg=am.name+"の攻撃！ "+(miss?"MISS!!":d+"ダメージ");
-    renderArenaRetro();arenaMsg(lines);
-    if(finished){
-      if(winner===myMonster){ap.wins++;ap.bp+=10}else ap.bp+=5;
-      save();send({t:"state",s:state,msg,lines});status(msg);clearInterval(timer);return;
-    }
-    state.turn=state.turn==="a"?"b":"a";state.n++;
-    send({t:"state",s:state,msg,lines});status(msg);
+    const msg=(attackerIsHost?"部屋作成側":"参加側")+"の攻撃！ "+(miss?"MISS!!":d+"ダメージ");
+    renderArenaRetro();
+    const mine=localizeLines(lines);
+    if(finished)mine[3]=state.winner==="host"?"★ じぶんの しょうり！ ★":"じぶんは まけてしまった…";
+    arenaMsg(mine);send({t:"state",s:state,msg,lines});
+    if(finished){finishFromState();clearInterval(timer);return}
+    state.turn=state.turn==="host"?"guest":"host";state.n++;
   };
   step();timer=setInterval(step,3000);
 }
+
 })();
 </script>
 </body></html>
