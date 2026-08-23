@@ -39,7 +39,7 @@
 .retro-command .wager-btn:disabled{opacity:.35}
 </style><script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script><script src="https://unpkg.com/@zxing/browser@0.2.0"></script>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / WAGER STOCK v11.0</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / STOCK SELECT v11.1</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">帳面</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><video id="camera" class="camera" playsinline muted></video><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div></div></section>
 <section id="battle" class="page">
@@ -66,10 +66,10 @@
 <section id="dex" class="page"><div class="panel"><h2>発見図鑑 <span id="count">0 / 441</span></h2><div class="row"><select id="filter"><option value="all">すべて</option><option value="found">発見済み</option><option value="missing">未発見</option></select><button id="resetDex">図鑑を消去</button></div></div><div id="book" class="grid"></div></section>
 <section id="codes" class="page"><div class="panel"><h2>バーコード帳 <span id="codeCount">0件</span></h2><p class="status">召喚したバーコードとモンスターの対応を記録します。商品名などをメモできます。</p><div class="row"><input id="codeSearch" placeholder="バーコード・名前・メモを検索"><button id="exportCodes">帳面を保存</button></div></div><div id="codeBook" class="code-book"></div></section>
 
-<section class="panel" id="ownedPanel"><h2>なかま</h2><p style="font-size:12px">いま持っているモンスター。同じ種類も何匹でもストックできる。</p><div id="ownedList"></div></section>
+<section class="panel" id="ownedPanel"><h2>なかま</h2><p style="font-size:12px">いま持っているモンスター。タップして対戦に出す1匹を選べます。</p><div id="ownedList"></div><button id="useOwnedBattle" class="primary" disabled>このモンスターで対戦</button><p id="ownedBattleStatus" class="status"></p></section>
 <section class="panel" id="onlineArena">
 <h2>オンライン対戦</h2>
-<p class="status">その場で召喚したモンスターだけが参加できます。双方READY後、部屋を作った側が開始します。</p>
+<p class="status">「なかま」から選んだモンスター、またはその場で召喚したモンスターで参加できます。双方READY後、部屋を作った側が開始します。</p>
 <div class="row"><button id="arenaCreate" class="primary">部屋を作る</button><input id="arenaCode" maxlength="4" inputmode="numeric" placeholder="4桁コード"><button id="arenaJoin">部屋に入る</button></div>
 <p id="arenaStatus" class="status">未接続</p>
 <div id="arenaRetroBattle" class="retro-battle retro-online">
@@ -224,10 +224,23 @@ function addOwned(n,d){const o=owned(),k=String(n);o[k]=Math.max(0,Number(o[k]||
 function usedCodes(){return loadObj(USED_KEY)}
 function codeUsed(c){return !!usedCodes()[String(c)]}
 function markUsed(c){const u=usedCodes();u[String(c)]=1;saveObj(USED_KEY,u)}
+let selectedOwnedNumber=Number(localStorage.getItem("baSelectedOwnedV11")||0);
+function selectOwned(n){
+  if(ownCount(n)<1)return;
+  selectedOwnedNumber=Number(n);localStorage.setItem("baSelectedOwnedV11",String(n));
+  renderOwned();
+}
+function selectedOwnedMonster(){
+  if(!selectedOwnedNumber||ownCount(selectedOwnedNumber)<1)return null;
+  return window.BARCODE_ARENA_CHARACTERS.find(c=>c.number===selectedOwnedNumber)||null;
+}
 function renderOwned(){
  const box=document.getElementById("ownedList");if(!box)return;
  const o=owned(),rows=window.BARCODE_ARENA_CHARACTERS.filter(c=>Number(o[String(c.number)]||0)>0);
- box.innerHTML=rows.length?rows.map(c=>`<div style="display:flex;justify-content:space-between;border-bottom:1px solid #333;padding:5px 0"><span>No.${c.number} ${c.name}</span><b>×${o[String(c.number)]}</b></div>`).join(""):"まだ なかまが いない。";
+ if(selectedOwnedNumber&&ownCount(selectedOwnedNumber)<1)selectedOwnedNumber=0;
+ box.innerHTML=rows.length?rows.map(c=>`<button type="button" class="owned-choice" data-owned="${c.number}" style="width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left;border:2px solid ${selectedOwnedNumber===c.number?'#f2c14e':'#333'};background:${selectedOwnedNumber===c.number?'#20190b':'#0b0d10'};padding:10px;margin:5px 0"><span>No.${c.number} ${c.name}${selectedOwnedNumber===c.number?'　★選択中':''}</span><b>×${o[String(c.number)]}</b></button>`).join(""):"まだ なかまが いない。";
+ box.querySelectorAll("[data-owned]").forEach(b=>b.onclick=()=>selectOwned(Number(b.dataset.owned)));
+ const btn=document.getElementById("useOwnedBattle");if(btn)btn.disabled=!selectedOwnedMonster();
 }
 setTimeout(renderOwned,0);
 function summon(code){
@@ -455,8 +468,20 @@ function useWager(){
 function turn(skill=false){if(skill)useWager();else startAutoBattle()}
 function renderDex(){const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]')),mode=$('filter').value;let list=chars;if(mode==='found')list=chars.filter(c=>found.has(c.number));if(mode==='missing')list=chars.filter(c=>!found.has(c.number));$('count').textContent=`${found.size} / ${chars.length}`;$('book').innerHTML=list.map(c=>found.has(c.number)?`<article class="mini"><img src="${c.image}" alt="${c.name}"><b>${String(c.number).padStart(3,'0')} ${c.name}</b><small>${c.rarity}・${c.element}</small></article>`:`<article class="mini"><div class="unknown">？</div><b>${String(c.number).padStart(3,'0')} ミハツケン</b><small>？？？</small></article>`).join('')}
 function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
-function renderCodeBook(){const map=mapData(),q=$('codeSearch').value.trim().toLowerCase();const rows=Object.entries(map).map(([code,v])=>{const e=normalizedEntry(v),c=chars.find(x=>x.number===e.number);return {code,e,c}}).filter(x=>x.c&&`${x.code} ${x.c.name} ${x.e.note||''}`.toLowerCase().includes(q)).sort((a,b)=>(b.e.discoveredAt||'').localeCompare(a.e.discoveredAt||''));$('codeCount').textContent=`${Object.keys(map).length}件`;$('codeBook').innerHTML=rows.length?rows.map(({code,e,c})=>`<article class="code-entry"><img src="${c.image}" alt="${c.name}"><div><b>${c.name}</b><small>No.${String(c.number).padStart(3,'0')}・${c.rarity}</small><code>${code}</code><small>${e.discoveredAt?new Date(e.discoveredAt).toLocaleString('ja-JP'):'発見日時なし'}</small><input class="code-note" data-code="${code}" value="${escapeHtml(e.note||'')}" placeholder="商品名・場所などをメモ"></div></article>`).join(''):'<div class="panel status">まだバーコードの記録がありません。</div>';document.querySelectorAll('.code-note').forEach(i=>i.onchange=()=>{const m=mapData(),e=normalizedEntry(m[i.dataset.code]);e.note=i.value.slice(0,80);m[i.dataset.code]=e;localStorage.setItem(mapKey,JSON.stringify(m))})}
-function exportCodeBook(){const map=mapData(),lines=['BARCODE ARENA 182 バーコード帳',''];for(const [code,v] of Object.entries(map)){const e=normalizedEntry(v),c=chars.find(x=>x.number===e.number);if(c)lines.push(`${code}\tNo.${String(c.number).padStart(3,'0')} ${c.name}\t${e.note||''}`)}downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_バーコード帳.txt')}
+function renderCodeBook(){
+ const map=mapData(),q=$('codeSearch').value.trim().toLowerCase();
+ const rows=Object.entries(map).map(([code,v])=>{const e=normalizedEntry(v),c=chars.find(x=>x.number===e.number);return {code,e,c}})
+ .filter(x=>x.c&&`${x.c.name} ${x.e.note||''}`.toLowerCase().includes(q))
+ .sort((a,b)=>(b.e.discoveredAt||'').localeCompare(a.e.discoveredAt||''));
+ $('codeCount').textContent=`${Object.keys(map).length}件`;
+ $('codeBook').innerHTML=rows.length?rows.map(({code,e,c})=>`<article class="code-entry"><img src="${c.image}" alt="${c.name}"><div><b>${c.name}</b><small>No.${String(c.number).padStart(3,'0')}・${c.rarity}</small><small>バーコード：ひみつ</small><small>${e.discoveredAt?new Date(e.discoveredAt).toLocaleString('ja-JP'):'発見日時なし'}</small><input class="code-note" data-code="${code}" value="${escapeHtml(e.note||'')}" placeholder="商品名・場所などをメモ"></div></article>`).join(''):'<div class="panel status">まだバーコードの記録がありません。</div>';
+ document.querySelectorAll('.code-note').forEach(i=>i.onchange=()=>{const m=mapData(),e=normalizedEntry(m[i.dataset.code]);e.note=i.value.slice(0,80);m[i.dataset.code]=e;localStorage.setItem(mapKey,JSON.stringify(m))})
+}
+function exportCodeBook(){
+ const map=mapData(),lines=['BARCODE ARENA モンスター帳','※元のバーコード番号は非表示です',''];
+ for(const [,v] of Object.entries(map)){const e=normalizedEntry(v),c=chars.find(x=>x.number===e.number);if(c)lines.push(`No.${String(c.number).padStart(3,'0')} ${c.name}\t${e.note||''}`)}
+ downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_モンスター帳.txt')
+}
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(b.dataset.page).classList.add('active');document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('primary',x===b))});
 $('summonBtn').onclick=()=>summon($('code').value);$('code').onkeydown=e=>{if(e.key==='Enter')summon(e.target.value)};$('cameraBtn').onclick=startCamera;$('stopCamera').onclick=stopCamera;$('attackBtn').onclick=()=>turn(false);$('skillBtn').onclick=()=>turn(true);$('newEnemyBtn').onclick=newEnemy;$('filter').onchange=renderDex;$('codeSearch').oninput=renderCodeBook;$('exportCodes').onclick=exportCodeBook;$('resetDex').onclick=()=>{if(confirm('図鑑とバーコードの対応をすべて消去しますか？')){localStorage.removeItem(dexKey);localStorage.removeItem(mapKey);renderDex();renderCodeBook()}};
 const last=Number(localStorage.getItem(lastKey));if(last)player=chars.find(c=>c.number===last);if(player)newEnemy();if(!window.isSecureContext)$('cameraStatus').textContent='この開き方（ローカルファイル）ではカメラを使用できません。GitHub Pagesのhttps://で開いてください。';renderDex();renderCodeBook();
@@ -468,16 +493,23 @@ const $a=id=>document.getElementById(id);
 let ap={bp:0,wins:0};try{ap=Object.assign(ap,JSON.parse(localStorage.getItem("baArenaProgressV7")||"{}"))}catch(e){}
 const save=()=>{localStorage.setItem("baArenaProgressV7",JSON.stringify(ap));$a("arenaBP").textContent=ap.bp;$a("arenaWins").textContent=ap.wins};save();
 let peer=null,conn=null,host=false,ready=false,otherReady=false,room="",myMonster=null,otherMonster=null,timer=null,state=null,finishedHandled=false;
+let arenaSelectedMonster=null;
 function currentMonster(){
+  if(arenaSelectedMonster&&ownCount(arenaSelectedMonster.number)>0)return arenaSelectedMonster;
   const title=document.querySelector("#result h2,#result h3,#result strong");
   const imgEl=document.querySelector("#result img");
   if(!title||!imgEl)return null;
-  const m=title.textContent.match(/No\.(\d+)/);
-  const n=m?Number(m[1]):0;
-  const c=window.BARCODE_ARENA_CHARACTERS.find(x=>x.number===n);
-  if(!c)return null;
+  const m=title.textContent.match(/No\.(\d+)/),n=m?Number(m[1]):0;
+  const c=window.BARCODE_ARENA_CHARACTERS.find(x=>x.number===n);if(!c)return null;
   return {number:c.number,name:c.name,image:c.image,hp:c.hp,atk:c.atk,def:c.def,spd:c.spd,skill:c.skill,rarity:c.rarity,element:c.element};
 }
+const useOwnedBtn=document.getElementById("useOwnedBattle");
+if(useOwnedBtn)useOwnedBtn.onclick=()=>{
+ const c=selectedOwnedMonster();if(!c)return;
+ arenaSelectedMonster={number:c.number,name:c.name,image:c.image,hp:c.hp,atk:c.atk,def:c.def,spd:c.spd,skill:c.skill,rarity:c.rarity,element:c.element};
+ const st=document.getElementById("ownedBattleStatus");if(st)st.textContent=c.name+"を 対戦モンスターに えらんだ！";
+ document.getElementById("onlineArena")?.scrollIntoView({behavior:"smooth",block:"start"});
+};
 function status(t){$a("arenaStatus").textContent=t}
 function arenaMsg(lines){
   const box=$a("arenaBattleMessage");if(!box)return;
