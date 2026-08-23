@@ -39,7 +39,7 @@
 .retro-command .wager-btn:disabled{opacity:.35}
 </style><script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script><script src="https://unpkg.com/@zxing/browser@0.2.0"></script>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / MONSTER LIST v11.2</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / LIST READY FIX v11.3</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">リスト</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><video id="camera" class="camera" playsinline muted></video><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div></div></section>
 <section id="battle" class="page">
@@ -68,7 +68,7 @@
 
 <section class="panel" id="onlineArena">
 <h2>オンライン対戦</h2>
-<p class="status">「モンスターリスト」で選んだモンスター、またはその場で召喚したモンスターで参加できます。双方READY後、部屋を作った側が開始します。</p>
+<p class="status">「モンスターリスト」で★選択中にした手持ちモンスターで参加できます。双方READY後、部屋を作った側が開始します。</p>
 <div class="row"><button id="arenaCreate" class="primary">部屋を作る</button><input id="arenaCode" maxlength="4" inputmode="numeric" placeholder="4桁コード"><button id="arenaJoin">部屋に入る</button></div>
 <p id="arenaStatus" class="status">未接続</p>
 <div id="arenaRetroBattle" class="retro-battle retro-online">
@@ -499,9 +499,6 @@ function renderCodeBook(){
    if(ownCount(n)<1)return;
    selectOwned(n);
    const c=window.BARCODE_ARENA_CHARACTERS.find(x=>x.number===n);
-   if(c){
-     arenaSelectedMonster={number:c.number,name:c.name,image:c.image,hp:c.hp,atk:c.atk,def:c.def,spd:c.spd,skill:c.skill,rarity:c.rarity,element:c.element};
-   }
    renderCodeBook();
  });
 }
@@ -524,23 +521,23 @@ const $a=id=>document.getElementById(id);
 let ap={bp:0,wins:0};try{ap=Object.assign(ap,JSON.parse(localStorage.getItem("baArenaProgressV7")||"{}"))}catch(e){}
 const save=()=>{localStorage.setItem("baArenaProgressV7",JSON.stringify(ap));$a("arenaBP").textContent=ap.bp;$a("arenaWins").textContent=ap.wins};save();
 let peer=null,conn=null,host=false,ready=false,otherReady=false,room="",myMonster=null,otherMonster=null,timer=null,state=null,finishedHandled=false;
-let arenaSelectedMonster=null;
 function currentMonster(){
-  if(arenaSelectedMonster&&ownCount(arenaSelectedMonster.number)>0)return arenaSelectedMonster;
+  // First priority: monster selected in モンスターリスト.
+  const selectedNo=Number(localStorage.getItem("baSelectedOwnedV11")||0);
+  if(selectedNo>0 && ownCount(selectedNo)>0){
+    const c=window.BARCODE_ARENA_CHARACTERS.find(x=>x.number===selectedNo);
+    if(c)return {number:c.number,name:c.name,image:c.image,hp:c.hp,atk:c.atk,def:c.def,spd:c.spd,skill:c.skill,rarity:c.rarity,element:c.element};
+  }
+
+  // Fallback: monster just summoned on the summon screen.
   const title=document.querySelector("#result h2,#result h3,#result strong");
   const imgEl=document.querySelector("#result img");
   if(!title||!imgEl)return null;
   const m=title.textContent.match(/No\.(\d+)/),n=m?Number(m[1]):0;
-  const c=window.BARCODE_ARENA_CHARACTERS.find(x=>x.number===n);if(!c)return null;
+  const c=window.BARCODE_ARENA_CHARACTERS.find(x=>x.number===n);
+  if(!c||ownCount(c.number)<1)return null;
   return {number:c.number,name:c.name,image:c.image,hp:c.hp,atk:c.atk,def:c.def,spd:c.spd,skill:c.skill,rarity:c.rarity,element:c.element};
 }
-const useOwnedBtn=document.getElementById("useOwnedBattle");
-if(useOwnedBtn)useOwnedBtn.onclick=()=>{
- const c=selectedOwnedMonster();if(!c)return;
- arenaSelectedMonster={number:c.number,name:c.name,image:c.image,hp:c.hp,atk:c.atk,def:c.def,spd:c.spd,skill:c.skill,rarity:c.rarity,element:c.element};
- const st=document.getElementById("ownedBattleStatus");if(st)st.textContent=c.name+"を 対戦モンスターに えらんだ！";
- document.getElementById("onlineArena")?.scrollIntoView({behavior:"smooth",block:"start"});
-};
 function status(t){$a("arenaStatus").textContent=t}
 function arenaMsg(lines){
   const box=$a("arenaBattleMessage");if(!box)return;
@@ -587,7 +584,7 @@ function setup(c){conn=c;c.on("open",()=>{status("接続しました。モンス
 function check(){if(ready&&otherReady){status("両者READY！");if(host)$a("arenaStart").disabled=false}}
 $a("arenaCreate").onclick=()=>{room=String(Math.floor(1000+Math.random()*9000));host=true;ready=false;otherReady=false;finishedHandled=false;peer=new Peer("ba182-"+room);peer.on("open",()=>status("対戦コード "+room+" ／ 相手を待っています…"));peer.on("connection",setup)}
 $a("arenaJoin").onclick=()=>{room=$a("arenaCode").value.replace(/\D/g,"");if(room.length!==4)return alert("4桁コードを入力してね");host=false;ready=false;otherReady=false;finishedHandled=false;peer=new Peer();peer.on("open",()=>setup(peer.connect("ba182-"+room,{reliable:true})))}
-$a("arenaReady").onclick=()=>{myMonster=currentMonster();if(!myMonster)return alert("先にバーコードをピッ！してモンスターを召喚してね。");if(ownCount(myMonster.number)<1)return alert("このモンスターは いま持っていないよ。");if(!confirm(myMonster.name+" ×1を かけて勝負する？\n負けると相手に取られます。"))return;ready=true;$a("arenaReady").disabled=true;send({t:"ready",m:myMonster});status("READY！ 相手を待っています…");arenaMsg(["じぶんの "+myMonster.name+"は READY！","&nbsp;","あいての じゅんびを","まっています…"]);check()}
+$a("arenaReady").onclick=()=>{myMonster=currentMonster();if(!myMonster)return alert("モンスターリストで手持ちモンスターを選んでね。");if(ownCount(myMonster.number)<1)return alert("このモンスターは いま持っていないよ。");if(!confirm(myMonster.name+" ×1を かけて勝負する？\n負けると相手に取られます。"))return;ready=true;$a("arenaReady").disabled=true;send({t:"ready",m:myMonster});status("READY！ 相手を待っています…");arenaMsg(["じぶんの "+myMonster.name+"は READY！","&nbsp;","あいての じゅんびを","まっています…"]);check()}
 $a("arenaStart").onclick=()=>{if(!host||!ready||!otherReady)return;state={hostHp:myMonster.hp,guestHp:otherMonster.hp,turn:myMonster.spd>=otherMonster.spd?"host":"guest",n:0,finished:false,winner:null};finishedHandled=false;send({t:"start",s:state});status("3… 2… 1… FIGHT!!");arenaMsg(["3…","2…","1…","BATTLE START！"]);renderArenaRetro();setTimeout(()=>run(true),2700)}
 function run(isHost){
   if(!isHost)return;clearInterval(timer);
