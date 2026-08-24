@@ -39,7 +39,7 @@
 .retro-command .wager-btn:disabled{opacity:.35}
 </style><script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script><script src="https://unpkg.com/@zxing/browser@0.2.0"></script>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / READY SCOPE FIX v11.4</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / WAGER SETTLE FIX v11.5</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">リスト</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><video id="camera" class="camera" playsinline muted></video><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div></div></section>
 <section id="battle" class="page">
@@ -510,6 +510,7 @@ function exportCodeBook(){
  }
  downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_モンスターリスト.txt')
 }
+document.addEventListener("ba-inventory-changed",()=>{try{renderCodeBook()}catch(e){}});
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(b.dataset.page).classList.add('active');document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('primary',x===b))});
 $('summonBtn').onclick=()=>summon($('code').value);$('code').onkeydown=e=>{if(e.key==='Enter')summon(e.target.value)};$('cameraBtn').onclick=startCamera;$('stopCamera').onclick=stopCamera;$('attackBtn').onclick=()=>turn(false);$('skillBtn').onclick=()=>turn(true);$('newEnemyBtn').onclick=newEnemy;$('filter').onchange=renderDex;$('codeSearch').oninput=renderCodeBook;$('exportCodes').onclick=exportCodeBook;$('resetDex').onclick=()=>{if(confirm('図鑑とバーコードの対応をすべて消去しますか？')){localStorage.removeItem(dexKey);localStorage.removeItem(mapKey);renderDex();renderCodeBook()}};
 const last=Number(localStorage.getItem(lastKey));if(last)player=chars.find(c=>c.number===last);if(player)newEnemy();if(!window.isSecureContext)$('cameraStatus').textContent='この開き方（ローカルファイル）ではカメラを使用できません。GitHub Pagesのhttps://で開いてください。';renderDex();renderCodeBook();
@@ -526,6 +527,21 @@ function arenaOwned(){
 }
 function arenaOwnCount(n){
   return Number(arenaOwned()[String(n)]||0);
+}
+function arenaSaveOwned(o){
+  localStorage.setItem("baOwnedV11",JSON.stringify(o));
+}
+function arenaAddOwned(n,d){
+  const o=arenaOwned(),k=String(n);
+  o[k]=Math.max(0,Number(o[k]||0)+d);
+  arenaSaveOwned(o);
+  // Refresh the list even though its renderer lives in another script scope.
+  try{document.dispatchEvent(new CustomEvent("ba-inventory-changed"))}catch(e){}
+}
+let battleActive=false,currentBattleId="",settledBattleIds=new Set();
+function setBattleLock(active){
+  battleActive=!!active;
+  if($a("arenaStart"))$a("arenaStart").disabled=active || !host || !ready || !otherReady;
 }
 
 function currentMonster(){
@@ -567,16 +583,29 @@ function localizeLines(lines){
     .replaceAll("{GUEST}",host?"あいて":"じぶん"));
 }
 function finishFromState(){
- if(!state||!state.finished||finishedHandled)return;
- finishedHandled=true;
+ if(!state||!state.finished)return;
+ const bid=String(state.battleId||currentBattleId||"");
+ if(!bid||settledBattleIds.has(bid))return;
+ settledBattleIds.add(bid);finishedHandled=true;setBattleLock(false);
  const iWon=(host&&state.winner==="host")||(!host&&state.winner==="guest");
- if(iWon){ap.wins++;ap.bp+=10;addOwned(otherMonster.number,1);status("しょうり！ "+otherMonster.name+"を てにいれた！");}
- else{ap.bp+=5;addOwned(myMonster.number,-1);status("はいぼく… "+myMonster.name+"を うばわれてしまった！");}
+ if(iWon){
+   ap.wins++;ap.bp+=10;
+   arenaAddOwned(otherMonster.number,1);
+   status("しょうり！ "+otherMonster.name+"を てにいれた！");
+   arenaMsg(["★ しょうり！ ★","あいての "+otherMonster.name+"を","てにいれた！","手持ち ＋1"]);
+ }else{
+   ap.bp+=5;
+   arenaAddOwned(myMonster.number,-1);
+   status("はいぼく… "+myMonster.name+"を うばわれてしまった！");
+   arenaMsg(["はいぼく…",myMonster.name+"を","うばわれてしまった！","手持ち －1"]);
+ }
  save();
+ ready=false;otherReady=false;
+ if($a("arenaReady"))$a("arenaReady").disabled=false;
 }
 function setup(c){conn=c;c.on("open",()=>{status("接続しました。リストで選んだモンスターでREADY！");$a("arenaReady").disabled=false});c.on("data",m=>{
  if(m.t==="ready"){otherReady=true;otherMonster=m.m;status("相手READY！ あなたもREADYしてね。");check()}
- if(m.t==="start"){state=m.s;finishedHandled=false;status("3… 2… 1… FIGHT!!");arenaMsg(["3…","2…","1…","BATTLE START！"]);renderArenaRetro()}
+ if(m.t==="start"){if(battleActive)return;state=m.s;currentBattleId=String(state.battleId||"");finishedHandled=false;setBattleLock(true);status("3… 2… 1… FIGHT!!");arenaMsg(["3…","2…","1…","BATTLE START！"]);renderArenaRetro()}
  if(m.t==="state"){
    state=m.s;renderArenaRetro();
    const lines=localizeLines(m.lines);
@@ -588,11 +617,18 @@ function setup(c){conn=c;c.on("open",()=>{status("接続しました。リスト
    finishFromState();
  }
 });}
-function check(){if(ready&&otherReady){status("両者READY！");if(host)$a("arenaStart").disabled=false}}
+function check(){if(ready&&otherReady){status("両者READY！");if(host&&!battleActive)$a("arenaStart").disabled=false}}
 $a("arenaCreate").onclick=()=>{room=String(Math.floor(1000+Math.random()*9000));host=true;ready=false;otherReady=false;finishedHandled=false;peer=new Peer("ba182-"+room);peer.on("open",()=>status("対戦コード "+room+" ／ 相手を待っています…"));peer.on("connection",setup)}
 $a("arenaJoin").onclick=()=>{room=$a("arenaCode").value.replace(/\D/g,"");if(room.length!==4)return alert("4桁コードを入力してね");host=false;ready=false;otherReady=false;finishedHandled=false;peer=new Peer();peer.on("open",()=>setup(peer.connect("ba182-"+room,{reliable:true})))}
 $a("arenaReady").onclick=()=>{myMonster=currentMonster();if(!myMonster)return alert("モンスターリストで手持ちモンスターを選んでね。");status("選択中："+myMonster.name);if(arenaOwnCount(myMonster.number)<1)return alert("このモンスターは いま持っていないよ。");if(!confirm(myMonster.name+" ×1を かけて勝負する？\n負けると相手に取られます。"))return;ready=true;$a("arenaReady").disabled=true;send({t:"ready",m:myMonster});status("READY！ 相手を待っています…");arenaMsg(["じぶんの "+myMonster.name+"は READY！","&nbsp;","あいての じゅんびを","まっています…"]);check()}
-$a("arenaStart").onclick=()=>{if(!host||!ready||!otherReady)return;state={hostHp:myMonster.hp,guestHp:otherMonster.hp,turn:myMonster.spd>=otherMonster.spd?"host":"guest",n:0,finished:false,winner:null};finishedHandled=false;send({t:"start",s:state});status("3… 2… 1… FIGHT!!");arenaMsg(["3…","2…","1…","BATTLE START！"]);renderArenaRetro();setTimeout(()=>run(true),2700)}
+$a("arenaStart").onclick=()=>{
+  if(!host||!ready||!otherReady||battleActive)return;
+  currentBattleId=room+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,8);
+  state={battleId:currentBattleId,hostHp:myMonster.hp,guestHp:otherMonster.hp,turn:myMonster.spd>=otherMonster.spd?"host":"guest",n:0,finished:false,winner:null};
+  finishedHandled=false;setBattleLock(true);
+  send({t:"start",s:state});status("3… 2… 1… FIGHT!!");arenaMsg(["3…","2…","1…","BATTLE START！"]);renderArenaRetro();
+  setTimeout(()=>run(true),2700);
+}
 function run(isHost){
   if(!isHost)return;clearInterval(timer);
   const step=()=>{
