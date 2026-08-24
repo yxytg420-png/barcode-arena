@@ -39,7 +39,7 @@
 .retro-command .wager-btn:disabled{opacity:.35}
 </style><script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script><script src="https://unpkg.com/@zxing/browser@0.2.0"></script>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / SOUND BATTLE v11.6</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / SOUND FLAT v11.6.1</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">リスト</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><video id="camera" class="camera" playsinline muted></video><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div></div></section>
 <section id="battle" class="page">
@@ -524,10 +524,10 @@ const last=Number(localStorage.getItem(lastKey));if(last)player=chars.find(c=>c.
 <script>
 window.BASound=(()=>{
  const files={
-  battle_start:"sounds/battle_start.mp3",attack:"sounds/attack.mp3",
-  critical:"sounds/critical.mp3",miss:"sounds/miss.mp3",
-  victory:"sounds/victory.mp3",defeat:"sounds/defeat.mp3",
-  get_monster:"sounds/get_monster.mp3",button:"sounds/button.mp3"
+  battle_start:"battle_start.mp3",attack:"attack.mp3",
+  critical:"critical.mp3",miss:"miss.mp3",
+  victory:"victory.mp3",defeat:"defeat.mp3",
+  get_monster:"get_monster.mp3",button:"button.mp3"
  };
  const pool={};
  for(const [k,v] of Object.entries(files)){const a=new Audio(v);a.preload="auto";pool[k]=a}
