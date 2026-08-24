@@ -39,7 +39,7 @@
 .retro-command .wager-btn:disabled{opacity:.35}
 </style><script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script><script src="https://unpkg.com/@zxing/browser@0.2.0"></script>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / WAGER SETTLE FIX v11.5</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / SOUND BATTLE v11.6</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">リスト</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><video id="camera" class="camera" playsinline muted></video><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div></div></section>
 <section id="battle" class="page">
@@ -413,7 +413,7 @@ function newEnemy(){
 function hit(attacker,defender,mult=1){
   return Math.max(1,Math.floor(attacker.atk*mult*(.82+Math.random()*.36)-defender.def*.34));
 }
-function startAutoBattle(){
+function startAutoBattle(){window.BASound?.play("battle_start");
   if(!player||!enemy||autoBattleRunning)return;
   if(php<=0||ehp<=0){newEnemy();return}
   autoBattleRunning=true;wagerUsed=false;battleTurnPlayer=true;
@@ -421,7 +421,7 @@ function startAutoBattle(){
   setBattleMessage(['BATTLE START！','&nbsp;',`${escapeHtml(player.name)} VS`,`${escapeHtml(enemy.name)}`]);
   autoBattleTimer=setTimeout(autoBattleStep,1800);
 }
-function finishLocalBattle(win){
+function finishLocalBattle(win){window.BASound?.play(win?"victory":"defeat");
   stopAutoBattle();$('attackBtn').disabled=false;$('skillBtn').disabled=true;
   if(win){setBattleMessage([`${escapeHtml(enemy.name)}を たおした！`,'&nbsp;',`${escapeHtml(player.name)}の`,'しょうり！'])}
   else{setBattleMessage([`${escapeHtml(player.name)}は たおれた。`,'&nbsp;',`${escapeHtml(enemy.name)}の`,'しょうり！'])}
@@ -432,6 +432,7 @@ function autoBattleStep(){
   const a=battleTurnPlayer?player:enemy,d=battleTurnPlayer?enemy:player;
   const miss=Math.random()<.08,crit=Math.random()<.12,miracle=Math.random()<.025;
   const dmg=miss?0:hit(a,d,(crit?1.55:1)*(miracle?2.25:1));
+  window.BASound?.play(miss?"miss":((crit||miracle)?"critical":"attack"));
   if(battleTurnPlayer)ehp=Math.max(0,ehp-dmg);else php=Math.max(0,php-dmg);
   setBattleMessage([`${escapeHtml(a.name)}の こうげき！`,miracle?'きせきの いちげき！':crit?'かいしんの いちげき！':'&nbsp;',miss?`${escapeHtml(d.name)}は ひらりと かわした！`:`${escapeHtml(d.name)}に ${dmg}の ダメージ！`,'&nbsp;']);
   renderBattle();
@@ -445,16 +446,19 @@ function useWager(){
 
   // 8% 大当たり / 22% 成功 / 35% 空振り / 35% 反動
   if(roll<.08){
+    window.BASound?.play("critical");
     const dmg=Math.max(30,Math.floor(player.atk*(2.8+Math.random()*1.0)));
     ehp=Math.max(0,ehp-dmg);
     setBattleMessage(['勝負！','★ だいあたり！ ★',`${escapeHtml(enemy.name)}に ${dmg}の ダメージ！`,'&nbsp;']);
     renderBattle(); if(ehp<=0)finishLocalBattle(true);
   }else if(roll<.30){
+    window.BASound?.play("attack");
     const dmg=Math.max(15,Math.floor(player.atk*(1.35+Math.random()*.55)));
     ehp=Math.max(0,ehp-dmg);
     setBattleMessage(['勝負！','せいこう！',`${escapeHtml(enemy.name)}に ${dmg}の ダメージ！`,'&nbsp;']);
     renderBattle(); if(ehp<=0)finishLocalBattle(true);
   }else if(roll<.65){
+    window.BASound?.play("miss");
     setBattleMessage(['勝負！','しかし なにも おこらなかった！','&nbsp;','しょうぶは つづく！']);
     renderBattle();
   }else{
@@ -516,6 +520,28 @@ $('summonBtn').onclick=()=>summon($('code').value);$('code').onkeydown=e=>{if(e.
 const last=Number(localStorage.getItem(lastKey));if(last)player=chars.find(c=>c.number===last);if(player)newEnemy();if(!window.isSecureContext)$('cameraStatus').textContent='この開き方（ローカルファイル）ではカメラを使用できません。GitHub Pagesのhttps://で開いてください。';renderDex();renderCodeBook();
 })();
 </script>
+
+<script>
+window.BASound=(()=>{
+ const files={
+  battle_start:"sounds/battle_start.mp3",attack:"sounds/attack.mp3",
+  critical:"sounds/critical.mp3",miss:"sounds/miss.mp3",
+  victory:"sounds/victory.mp3",defeat:"sounds/defeat.mp3",
+  get_monster:"sounds/get_monster.mp3",button:"sounds/button.mp3"
+ };
+ const pool={};
+ for(const [k,v] of Object.entries(files)){const a=new Audio(v);a.preload="auto";pool[k]=a}
+ function play(k,vol=1){
+  const base=pool[k];if(!base)return;
+  try{const a=base.cloneNode();a.volume=vol;a.play().catch(()=>{})}catch(e){}
+ }
+ document.addEventListener("click",e=>{
+   if(e.target.closest("button"))play("button",.45);
+ },true);
+ return {play};
+})();
+</script>
+
 <script>
 (()=>{
 const $a=id=>document.getElementById(id);
@@ -591,11 +617,13 @@ function finishFromState(){
  if(iWon){
    ap.wins++;ap.bp+=10;
    arenaAddOwned(otherMonster.number,1);
+   window.BASound?.play("victory");setTimeout(()=>window.BASound?.play("get_monster"),850);
    status("しょうり！ "+otherMonster.name+"を てにいれた！");
    arenaMsg(["★ しょうり！ ★","あいての "+otherMonster.name+"を","てにいれた！","手持ち ＋1"]);
  }else{
    ap.bp+=5;
    arenaAddOwned(myMonster.number,-1);
+   window.BASound?.play("defeat");
    status("はいぼく… "+myMonster.name+"を うばわれてしまった！");
    arenaMsg(["はいぼく…",myMonster.name+"を","うばわれてしまった！","手持ち －1"]);
  }
@@ -605,9 +633,10 @@ function finishFromState(){
 }
 function setup(c){conn=c;c.on("open",()=>{status("接続しました。リストで選んだモンスターでREADY！");$a("arenaReady").disabled=false});c.on("data",m=>{
  if(m.t==="ready"){otherReady=true;otherMonster=m.m;status("相手READY！ あなたもREADYしてね。");check()}
- if(m.t==="start"){if(battleActive)return;state=m.s;currentBattleId=String(state.battleId||"");finishedHandled=false;setBattleLock(true);status("3… 2… 1… FIGHT!!");arenaMsg(["3…","2…","1…","BATTLE START！"]);renderArenaRetro()}
+ if(m.t==="start"){if(battleActive)return;window.BASound?.play("battle_start");state=m.s;currentBattleId=String(state.battleId||"");finishedHandled=false;setBattleLock(true);status("3… 2… 1… FIGHT!!");arenaMsg(["3…","2…","1…","BATTLE START！"]);renderArenaRetro()}
  if(m.t==="state"){
    state=m.s;renderArenaRetro();
+   if(m.sound)window.BASound?.play(m.sound);
    const lines=localizeLines(m.lines);
    if(state.finished){
      const iWon=(host&&state.winner==="host")||(!host&&state.winner==="guest");
@@ -625,7 +654,7 @@ $a("arenaStart").onclick=()=>{
   if(!host||!ready||!otherReady||battleActive)return;
   currentBattleId=room+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,8);
   state={battleId:currentBattleId,hostHp:myMonster.hp,guestHp:otherMonster.hp,turn:myMonster.spd>=otherMonster.spd?"host":"guest",n:0,finished:false,winner:null};
-  finishedHandled=false;setBattleLock(true);
+  finishedHandled=false;setBattleLock(true);window.BASound?.play("battle_start");
   send({t:"start",s:state});status("3… 2… 1… FIGHT!!");arenaMsg(["3…","2…","1…","BATTLE START！"]);renderArenaRetro();
   setTimeout(()=>run(true),2700);
 }
@@ -648,10 +677,12 @@ function run(isHost){
       finished?(state.winner==="host"?"{HOST}の しょうり！":"{GUEST}の しょうり！"):'&nbsp;'
     ];
     const msg=(attackerIsHost?"部屋作成側":"参加側")+"の攻撃！ "+(miss?"MISS!!":d+"ダメージ");
+    const hitSound=miss?"miss":((crit||miracle)?"critical":"attack");
+    window.BASound?.play(hitSound);
     renderArenaRetro();
     const mine=localizeLines(lines);
     if(finished)mine[3]=state.winner==="host"?"★ じぶんの しょうり！ ★":"じぶんは まけてしまった…";
-    arenaMsg(mine);send({t:"state",s:state,msg,lines});
+    arenaMsg(mine);send({t:"state",s:state,msg,lines,sound:hitSound});
     if(finished){finishFromState();clearInterval(timer);return}
     state.turn=state.turn==="host"?"guest":"host";state.n++;
   };
