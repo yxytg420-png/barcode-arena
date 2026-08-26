@@ -40,8 +40,58 @@
 .stock-tools{margin-top:10px}.stock-tools button{flex:1}.stock-edit{display:flex;justify-content:center;gap:8px;margin-top:8px}.stock-edit button{padding:7px 12px;min-width:44px}.stock-edit strong{display:grid;place-items:center;min-width:34px}
 .mini.owned{cursor:pointer}.mini.selected{border:3px solid var(--gold);box-shadow:0 0 12px #f3bf3f88}.mini.empty{opacity:.5}.stock{color:#ffe39a!important;font-weight:700}.selected-mark{color:var(--gold)!important;font-weight:700}
 </style><script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script><script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+
+<script>
+(()=>{
+  const files={
+    attack:"attack.mp3",
+    critical:"critical.mp3",
+    miss:"miss.mp3",
+    victory:"victory.mp3",
+    defeat:"defeat.mp3",
+    get:"get_monster.mp3"
+  };
+  const sounds={};
+  for(const [key,file] of Object.entries(files)){
+    const a=new Audio(file);
+    a.preload="auto";
+    sounds[key]=a;
+  }
+  let unlocked=false;
+  async function unlock(){
+    if(unlocked)return;
+    unlocked=true;
+    for(const a of Object.values(sounds)){
+      try{
+        const oldMuted=a.muted;
+        a.muted=true;
+        a.currentTime=0;
+        const p=a.play();
+        if(p&&p.then)await p.catch(()=>{});
+        a.pause();
+        a.currentTime=0;
+        a.muted=oldMuted;
+      }catch(e){}
+    }
+  }
+  function play(name){
+    const a=sounds[name];
+    if(!a)return;
+    try{
+      a.pause();
+      a.currentTime=0;
+      const p=a.play();
+      if(p&&p.catch)p.catch(()=>{});
+    }catch(e){}
+  }
+  window.BARCODE_ARENA_SOUND={play,unlock};
+  document.addEventListener("pointerdown",unlock,{once:true,passive:true});
+  document.addEventListener("touchstart",unlock,{once:true,passive:true});
+  document.addEventListener("click",unlock,{once:true,passive:true});
+})();
+</script>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / AUTO BATTLE v11.6.9</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS / AUTO BATTLE v11.6.10</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">モンスターリスト</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><video id="camera" class="camera" playsinline muted></video><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div></div></section>
 <section id="battle" class="page">
@@ -234,7 +284,7 @@ function summon(code){
   map[clean]={number:c.number,discoveredAt:old.discoveredAt||new Date().toISOString(),note:old.note||''};
   localStorage.setItem(mapKey,JSON.stringify(map));
   const stock=stockData();stock[c.number]=Number(stock[c.number]||0)+1;saveStock(stock);
-  show(c,clean,isNew);renderCodeBook();
+  show(c,clean,isNew);window.BARCODE_ARENA_SOUND?.play('get');renderCodeBook();
 }
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 async function shareOrSave(blob,name,title){const file=new File([blob],name,{type:'image/png'});if(navigator.canShare?.({files:[file]})){try{await navigator.share({files:[file],title});return}catch(e){if(e.name==='AbortError')return}}downloadBlob(blob,name)}
@@ -337,6 +387,7 @@ function finishLocalBattle(win){
   stopAutoBattle();$('attackBtn').disabled=false;$('skillBtn').disabled=true;
   if(win){setBattleMessage([`${escapeHtml(enemy.name)}を たおした！`,'&nbsp;',`${escapeHtml(player.name)}の`,'しょうり！'])}
   else{setBattleMessage([`${escapeHtml(player.name)}は たおれた。`,'&nbsp;',`${escapeHtml(enemy.name)}の`,'しょうり！'])}
+  window.BARCODE_ARENA_SOUND?.play(win?'victory':'defeat');
   renderBattle();
 }
 function autoBattleStep(){
@@ -346,6 +397,7 @@ function autoBattleStep(){
   const dmg=miss?0:hit(a,d,(crit?1.55:1)*(miracle?2.25:1));
   if(battleTurnPlayer)ehp=Math.max(0,ehp-dmg);else php=Math.max(0,php-dmg);
   setBattleMessage([`${escapeHtml(a.name)}の こうげき！`,miracle?'きせきの いちげき！':crit?'かいしんの いちげき！':'&nbsp;',miss?`${escapeHtml(d.name)}は ひらりと かわした！`:`${escapeHtml(d.name)}に ${dmg}の ダメージ！`,'&nbsp;']);
+  window.BARCODE_ARENA_SOUND?.play(miss?'miss':(miracle||crit)?'critical':'attack');
   renderBattle();
   if(ehp<=0){finishLocalBattle(true);return} if(php<=0){finishLocalBattle(false);return}
   battleTurnPlayer=!battleTurnPlayer;autoBattleTimer=setTimeout(autoBattleStep,2600);
@@ -360,19 +412,23 @@ function useWager(){
     const dmg=Math.max(30,Math.floor(player.atk*(2.8+Math.random()*1.0)));
     ehp=Math.max(0,ehp-dmg);
     setBattleMessage(['勝負！','★ だいあたり！ ★',`${escapeHtml(enemy.name)}に ${dmg}の ダメージ！`,'&nbsp;']);
+    window.BARCODE_ARENA_SOUND?.play('critical');
     renderBattle(); if(ehp<=0)finishLocalBattle(true);
   }else if(roll<.30){
     const dmg=Math.max(15,Math.floor(player.atk*(1.35+Math.random()*.55)));
     ehp=Math.max(0,ehp-dmg);
     setBattleMessage(['勝負！','せいこう！',`${escapeHtml(enemy.name)}に ${dmg}の ダメージ！`,'&nbsp;']);
+    window.BARCODE_ARENA_SOUND?.play('attack');
     renderBattle(); if(ehp<=0)finishLocalBattle(true);
   }else if(roll<.65){
     setBattleMessage(['勝負！','しかし なにも おこらなかった！','&nbsp;','しょうぶは つづく！']);
+    window.BARCODE_ARENA_SOUND?.play('miss');
     renderBattle();
   }else{
     const dmg=Math.max(12,Math.floor(player.hp*(.20+Math.random()*.22)));
     php=Math.max(0,php-dmg);
     setBattleMessage(['勝負！','しっぱい！',`${escapeHtml(player.name)}に ${dmg}の はんどう！`,'ピンチ！']);
+    window.BARCODE_ARENA_SOUND?.play('miss');
     renderBattle(); if(php<=0)finishLocalBattle(false);
   }
 }
@@ -419,7 +475,7 @@ function renderCodeBook(){
     renderCodeBook()
   });
 }
-function exportCodeBook(){const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]')),stock=stockData(),lines=['BARCODE ARENA v11.6.9 モンスターリスト',''];for(const c of chars.filter(x=>found.has(x.number)))lines.push(`No.${String(c.number).padStart(3,'0')} ${c.name}\t手持ち ×${Number(stock[c.number]||0)}`);downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_モンスターリスト.txt')}
+function exportCodeBook(){const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]')),stock=stockData(),lines=['BARCODE ARENA v11.6.10 モンスターリスト',''];for(const c of chars.filter(x=>found.has(x.number)))lines.push(`No.${String(c.number).padStart(3,'0')} ${c.name}\t手持ち ×${Number(stock[c.number]||0)}`);downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_モンスターリスト.txt')}
 window.addEventListener('ba-stock-changed',renderCodeBook);
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(b.dataset.page).classList.add('active');document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('primary',x===b))});
 
@@ -455,7 +511,7 @@ const save=()=>{localStorage.setItem("baArenaProgressV7",JSON.stringify(ap));$a(
 const stockKey="baMonsterStockV11",selectedKey="baSelectedMonsterV11",settledKey="baSettledBattlesV115";
 let peer=null,conn=null,host=false,ready=false,otherReady=false,room="",myMonster=null,otherMonster=null,timer=null,state=null,battleActive=false,finishedHandled=false;
 const arenaSounds={attack:new Audio("attack.mp3"),critical:new Audio("critical.mp3"),miss:new Audio("miss.mp3"),victory:new Audio("victory.mp3"),defeat:new Audio("defeat.mp3"),get:new Audio("get_monster.mp3")};
-function playArenaSound(name){const a=arenaSounds[name];if(!a)return;try{a.currentTime=0;a.play().catch(()=>{})}catch(e){}}
+function playArenaSound(name){if(window.BARCODE_ARENA_SOUND){window.BARCODE_ARENA_SOUND.play(name);return}const a=arenaSounds[name];if(!a)return;try{a.currentTime=0;a.play().catch(()=>{})}catch(e){}}
 function currentMonster(){
   const n=Number(localStorage.getItem(selectedKey)||0);
   const c=window.BARCODE_ARENA_CHARACTERS.find(x=>x.number===n);
