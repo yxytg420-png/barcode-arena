@@ -94,10 +94,10 @@
 .bp-limited{border-color:#b77cff!important;box-shadow:0 0 14px #7a2cff55}.bp-tag{display:inline-block;margin-top:5px;padding:3px 7px;border:1px solid #d59cff;color:#efd8ff;background:#35104d;font-size:12px;font-weight:700}.bp-panel{text-align:center;background:radial-gradient(circle at 50% 0,#321250 0,#111018 58%,#08090b 100%)}.bp-balance{font-size:24px;color:#ffe36e}.bp-odds{color:#bbb0c8;font-size:13px;line-height:1.7}.bp-result{min-height:80px;margin-top:14px}.bp-result.reveal{animation:bpReveal .85s ease-out}.bp-result .sprite{filter:drop-shadow(0 0 14px #d78cff)}.bp-result h2{color:#ffe36e;text-shadow:0 0 9px #c030ff}.bp-cost{color:#fff0a0}@keyframes bpReveal{0%{opacity:0;transform:scale(.2) rotate(-8deg);filter:brightness(4)}65%{opacity:1;transform:scale(1.12) rotate(2deg);filter:brightness(1.8)}100%{transform:scale(1);filter:brightness(1)}}
 </style>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS + 4 BP LIMITED / AUTO BATTLE v11.6.11</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS + 4 BP LIMITED / AUTO BATTLE v11.6.12</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="bpDraw">BP抽選</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">モンスターリスト</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><video id="camera" class="camera" playsinline muted></video><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div></div></section>
-<section id="bpDraw" class="page"><div class="panel bp-panel"><h2>★ BP限定抽選 ★</h2><p class="status">対戦で貯めたBPを使って、バーコードからは出ない限定キャラクターを獲得できます。</p><p class="bp-balance">所持BP <b id="bpDrawBalance">0</b></p><button id="bpDrawBtn" class="primary">300 BPで抽選する</button><p class="bp-odds">ローレシアの王子 35% / サマルトリアの王子 35%<br>ムーンブルクの王女 25% / 伝説の勇者 5%</p><div id="bpDrawResult" class="bp-result status">BPを貯めて限定キャラクターを狙おう！</div></div></section>
+<section id="bpDraw" class="page"><div class="panel bp-panel"><h2>★ BP限定抽選 ★</h2><p class="status">対戦で貯めたBPを使って、バーコードからは出ない限定キャラクターを獲得できます。</p><p class="bp-balance">所持BP <b id="bpDrawBalance">0</b></p><button id="bpDrawBtn" class="primary">300 BPで抽選する</button><p class="bp-odds">ハズレ 90%<br>ローレシアの王子 4% / サマルトリアの王子 3%<br>ムーンブルクの王女 2% / 伝説の勇者 1%</p><div id="bpDrawResult" class="bp-result status">BPを貯めて限定キャラクターを狙おう！</div></div></section>
 <section id="battle" class="page">
 <div class="panel">
 <h2>1対1バトル</h2>
@@ -522,14 +522,19 @@ const last=Number(localStorage.getItem(lastKey));if(!localStorage.getItem(select
  const $g=id=>document.getElementById(id),pool=window.BARCODE_ARENA_CHARACTERS.filter(c=>c.bpLimited);
  function progress(){try{return Object.assign({bp:0,wins:0},JSON.parse(localStorage.getItem(progressKey)||'{}'))}catch(e){return {bp:0,wins:0}}}
  function refresh(){const p=progress();$g('bpDrawBalance').textContent=p.bp;$g('bpDrawBtn').disabled=p.bp<COST;$g('bpDrawBtn').textContent=p.bp<COST?`あと ${COST-p.bp} BP`:`${COST} BPで抽選する`;const arena=$g('arenaBP');if(arena)arena.textContent=p.bp}
- function pick(){const r=Math.random()*100;return r<5?pool[0]:r<40?pool[1]:r<75?pool[2]:pool[3]}
+ function pick(){const r=Math.random()*100;return r<1?pool[0]:r<5?pool[1]:r<8?pool[2]:r<10?pool[3]:null}
  $g('bpDrawBtn').onclick=()=>{
   const p=progress();if(p.bp<COST)return alert(`BPが足りません。あと${COST-p.bp}BP必要です。`);
   if(!confirm(`${COST}BPを使って限定抽選をしますか？`))return;
   p.bp-=COST;localStorage.setItem(progressKey,JSON.stringify(p));
-  const c=pick(),stock=(()=>{try{return JSON.parse(localStorage.getItem(stockKey)||'{}')}catch(e){return {}}})();stock[c.number]=Number(stock[c.number]||0)+1;localStorage.setItem(stockKey,JSON.stringify(stock));
+  const c=pick(),out=$g('bpDrawResult');out.classList.remove('reveal');void out.offsetWidth;
+  if(!c){
+   out.innerHTML=`<article class="card"><p class="bp-cost">★ ハズレ ★</p><h2>ざんねん！</h2><p class="status">今回は何も出なかった…</p><small>300 BPを消費しました。</small></article>`;out.classList.add('reveal');
+   window.BARCODE_ARENA_SOUND?.play('miss');window.dispatchEvent(new CustomEvent('ba-bp-acquired'));refresh();return;
+  }
+  const stock=(()=>{try{return JSON.parse(localStorage.getItem(stockKey)||'{}')}catch(e){return {}}})();stock[c.number]=Number(stock[c.number]||0)+1;localStorage.setItem(stockKey,JSON.stringify(stock));
   const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]'));found.add(c.number);localStorage.setItem(dexKey,JSON.stringify([...found]));
-  const out=$g('bpDrawResult');out.classList.remove('reveal');void out.offsetWidth;out.innerHTML=`<article class="card"><p class="bp-cost">★ BP限定 ★</p><img class="sprite" src="${c.image}" alt="${c.name}"><span class="bp-tag">BP限定</span><h2>${c.name}を手に入れた！</h2><div class="stats"><span>HP ${c.hp}</span><span>ATK ${c.atk}</span><span>DEF ${c.def}</span><span>SPD ${c.spd}</span></div><p class="skill">必殺技「${c.skill}」</p><small>手持ち ×${stock[c.number]}</small></article>`;out.classList.add('reveal');
+  out.innerHTML=`<article class="card"><p class="bp-cost">★ BP限定 ★</p><img class="sprite" src="${c.image}" alt="${c.name}"><span class="bp-tag">BP限定</span><h2>${c.name}を手に入れた！</h2><div class="stats"><span>HP ${c.hp}</span><span>ATK ${c.atk}</span><span>DEF ${c.def}</span><span>SPD ${c.spd}</span></div><p class="skill">必殺技「${c.skill}」</p><small>手持ち ×${stock[c.number]}</small></article>`;out.classList.add('reveal');
   window.BARCODE_ARENA_SOUND?.play('get');window.dispatchEvent(new CustomEvent('ba-stock-changed'));window.dispatchEvent(new CustomEvent('ba-bp-acquired'));refresh();
  };
  window.addEventListener('storage',refresh);document.addEventListener('click',e=>{if(e.target?.dataset?.page==='bpDraw')refresh()});refresh();
