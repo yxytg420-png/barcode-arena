@@ -94,10 +94,10 @@
 .bp-limited{border-color:#b77cff!important;box-shadow:0 0 14px #7a2cff55}.bp-tag{display:inline-block;margin-top:5px;padding:3px 7px;border:1px solid #d59cff;color:#efd8ff;background:#35104d;font-size:12px;font-weight:700}.bp-panel{text-align:center;background:radial-gradient(circle at 50% 0,#321250 0,#111018 58%,#08090b 100%)}.bp-balance{font-size:24px;color:#ffe36e}.bp-odds{color:#bbb0c8;font-size:13px;line-height:1.7}.bp-result{min-height:80px;margin-top:14px}.bp-result.reveal{animation:bpReveal .85s ease-out}.bp-result .sprite{filter:drop-shadow(0 0 14px #d78cff)}.bp-result h2{color:#ffe36e;text-shadow:0 0 9px #c030ff}.bp-cost{color:#fff0a0}@keyframes bpReveal{0%{opacity:0;transform:scale(.2) rotate(-8deg);filter:brightness(4)}65%{opacity:1;transform:scale(1.12) rotate(2deg);filter:brightness(1.8)}100%{transform:scale(1);filter:brightness(1)}}
 </style>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS + 4 BP LIMITED / AUTO BATTLE v11.6.12</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS + 4 BP LIMITED / AUTO BATTLE v11.6.13</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="bpDraw">BP抽選</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">モンスターリスト</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><video id="camera" class="camera" playsinline muted></video><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div></div></section>
-<section id="bpDraw" class="page"><div class="panel bp-panel"><h2>★ BP限定抽選 ★</h2><p class="status">対戦で貯めたBPを使って、バーコードからは出ない限定キャラクターを獲得できます。</p><p class="bp-balance">所持BP <b id="bpDrawBalance">0</b></p><button id="bpDrawBtn" class="primary">300 BPで抽選する</button><div id="bpDrawResult" class="bp-result status">BPを貯めて限定キャラクターを狙おう！</div></div></section>
+<section id="bpDraw" class="page"><div class="panel bp-panel"><h2>★ BP限定抽選 ★</h2><p class="status">対戦で貯めたBPを使って、バーコードからは出ない限定キャラクターを獲得できます。</p><p class="bp-balance">所持BP <b id="bpDrawBalance">0</b></p><button id="bpDrawBtn" class="primary">300 BPで抽選する</button><p class="bp-odds">ハズレ 90%<br>ローレシアの王子 4% / サマルトリアの王子 3%<br>ムーンブルクの王女 2% / 伝説の勇者 1%</p><div id="bpDrawResult" class="bp-result status">BPを貯めて限定キャラクターを狙おう！</div></div></section>
 <section id="battle" class="page">
 <div class="panel">
 <h2>1対1バトル</h2>
@@ -568,17 +568,36 @@ function prepareRematch(){
 }
 function settledIds(){try{return JSON.parse(localStorage.getItem(settledKey)||'[]')}catch(e){return []}}
 function settleBattle(s){
-  if(!s||!s.id||!s.winner||!s.hostMonster||!s.guestMonster)return;
-  const done=settledIds();if(done.includes(s.id))return;
+  if(!s||!s.id||!s.winner||!s.hostMonster||!s.guestMonster)return null;
+  const done=settledIds();if(done.includes(s.id))return null;
   const iAmWinner=(host&&s.winner==="host")||(!host&&s.winner==="guest");
   const won=iAmWinner?(host?s.guestMonster:s.hostMonster):null;
   const lost=iAmWinner?null:(host?s.hostMonster:s.guestMonster);
   const inv=stock();
   if(won)inv[won.number]=Number(inv[won.number]||0)+1;
   if(lost)inv[lost.number]=Math.max(0,Number(inv[lost.number]||0)-1);
-  localStorage.setItem(stockKey,JSON.stringify(inv));done.push(s.id);localStorage.setItem(settledKey,JSON.stringify(done.slice(-100)));
+  localStorage.setItem(stockKey,JSON.stringify(inv));
+  if(iAmWinner){ap.wins++;ap.bp+=15}else ap.bp+=5;
+  save();
+  done.push(s.id);localStorage.setItem(settledKey,JSON.stringify(done.slice(-100)));
   window.dispatchEvent(new CustomEvent('ba-stock-changed'));
   playArenaSound(iAmWinner?"victory":"defeat");if(iAmWinner)setTimeout(()=>playArenaSound("get"),650);
+  return {iAmWinner,won,lost,bp:iAmWinner?15:5};
+}
+function battleResultLines(result){
+  if(!result)return null;
+  if(result.iAmWinner)return [
+    `${myMonster.name}の しょうり！`,
+    `${result.won.name}を てにいれた！`,
+    `${result.bp}BP かくとく！`,
+    'つぎの モンスターを えらぼう！'
+  ];
+  return [
+    `${myMonster.name}は まけてしまった…`,
+    `${result.lost.name}を うしなった…`,
+    `${result.bp}BP かくとく！`,
+    'つぎの モンスターを えらぼう！'
+  ];
 }
 function status(t){$a("arenaStatus").textContent=t}
 function arenaMsg(lines){
@@ -606,7 +625,7 @@ function send(x){if(conn&&conn.open)conn.send(x)}
 function setup(c){conn=c;c.on("open",()=>{status("接続しました。リストで選んだモンスターでREADY！");$a("arenaReady").disabled=false});c.on("data",m=>{
  if(m.t==="ready"&&!battleActive){otherReady=true;otherMonster=m.m;renderArenaReadyPreview();status(ready?"両者READY！":"相手READY！ あなたもREADYしてね。");check()}
  if(m.t==="start"){if(battleActive||!m.s?.id)return;clearBattleTimer();state=m.s;finishedHandled=false;setStartLock(true);status("3… 2… 1… FIGHT!!");arenaMsg(["3…","2…","1…","BATTLE START！"]);renderArenaRetro()}
- if(m.t==="state"){if(!battleActive||!state?.id||m.s?.id!==state.id)return;state=m.s;status(m.msg);renderArenaRetro();if(m.lines)arenaMsg(m.lines);if(state.settled&&!finishedHandled){finishedHandled=true;settleBattle(state);setTimeout(()=>{prepareRematch();status("次のモンスターを選び、もう一度READYしてください。");arenaMsg(["しょうぶが つきました。","&nbsp;","つぎの モンスターを えらび","もういちど READY！"]);},900)}}
+ if(m.t==="state"){if(!battleActive||!state?.id||m.s?.id!==state.id)return;state=m.s;status(m.msg);renderArenaRetro();if(m.lines)arenaMsg(m.lines);if(state.settled&&!finishedHandled){finishedHandled=true;const result=settleBattle(state);const resultLines=battleResultLines(result);if(resultLines)arenaMsg(resultLines);status(result?.iAmWinner?"勝利！ モンスターと15BPを獲得しました。":"敗北…。モンスターを失い、5BPを獲得しました。");setTimeout(()=>{prepareRematch();status("次のモンスターを選び、もう一度READYしてください。");arenaMsg(["しょうぶが つきました。","&nbsp;","つぎの モンスターを えらび","もういちど READY！"]);},3500)}}
 });}
 function check(){if(ready&&otherReady){status("両者READY！");if(host)$a("arenaStart").disabled=false}}
 $a("arenaCreate").onclick=()=>{room=String(Math.floor(1000+Math.random()*9000));host=true;peer=new Peer("ba182-"+room);peer.on("open",()=>status("対戦コード "+room+" ／ 相手を待っています…"));peer.on("connection",setup)}
@@ -635,8 +654,7 @@ function run(isHost){
     if(finished&&!finishedHandled){
       finishedHandled=true;
       state.winner=winner===myMonster?"host":"guest";state.settled=true;
-      if(winner===myMonster){ap.wins++;ap.bp+=10}else ap.bp+=5;
-      save();settleBattle(state);send({t:"state",s:state,msg,lines});status(msg);clearBattleTimer();setTimeout(()=>{prepareRematch();status("次のモンスターを選び、もう一度READYしてください。");arenaMsg(["しょうぶが つきました。","&nbsp;","つぎの モンスターを えらび","もういちど READY！"]);},900);return;
+      const result=settleBattle(state);send({t:"state",s:state,msg,lines});const resultLines=battleResultLines(result);if(resultLines)arenaMsg(resultLines);status(result?.iAmWinner?"勝利！ モンスターと15BPを獲得しました。":"敗北…。モンスターを失い、5BPを獲得しました。");clearBattleTimer();setTimeout(()=>{prepareRematch();status("次のモンスターを選び、もう一度READYしてください。");arenaMsg(["しょうぶが つきました。","&nbsp;","つぎの モンスターを えらび","もういちど READY！"]);},3500);return;
     }
     state.turn=state.turn==="a"?"b":"a";state.n++;
     send({t:"state",s:state,msg,lines});status(msg);
