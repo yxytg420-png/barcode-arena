@@ -96,7 +96,7 @@
 .legend-item{margin-top:12px;padding:12px;border:1px solid #d9c86d;background:linear-gradient(180deg,#17150c,#0a0b0d);text-align:center}.legend-item b{color:#fff2a6}.legend-item .item-count{font-size:20px;color:#ffe36e}.legend-item button{margin-top:8px}.dark-robe-tag{color:#c7a8ff;text-shadow:0 0 8px #7e45ff}.light-orb-result{border-color:#fff0a0!important;box-shadow:0 0 18px #fff3a844}.light-orb-result h2{color:#fff2a6;text-shadow:0 0 10px #ffe36e}
 </style>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS + 4 BP LIMITED / AUTO BATTLE v11.6.16</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS + 4 BP LIMITED / AUTO BATTLE v11.6.17</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="bpDraw">BP抽選</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">モンスターリスト</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><video id="camera" class="camera" playsinline muted></video><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div><div class="legend-item"><b>伝説のアイテム</b><div class="item-count">光の玉 ×<span id="lightOrbCountSummon">0</span></div><small>ごくまれにバーコードから見つかります。</small></div></div></section>
 <section id="bpDraw" class="page"><div class="panel bp-panel"><h2>★ BP限定抽選 ★</h2><p class="status">対戦で貯めたBPを使って、バーコードからは出ない限定キャラクターを獲得できます。</p><p class="bp-balance">所持BP <b id="bpDrawBalance">0</b></p><button id="bpDrawBtn" class="primary">300 BPで抽選する</button><div id="bpDrawResult" class="bp-result status">BPを貯めて限定キャラクターを狙おう！</div></div></section>
@@ -244,7 +244,7 @@ const BARCODE_ARENA_BP_LIMITED=[
  {number:442,name:'伝説の勇者',rarity:'MYTHIC',element:'光',hp:125,atk:62,def:55,spd:50,skill:'ギガブレイク',image:'yusha.png',bpLimited:true},
  {number:443,name:'ローレシアの王子',rarity:'LEGEND',element:'炎',hp:132,atk:68,def:58,spd:34,skill:'ロトノツルギ',image:'lorasia.png',bpLimited:true},
  {number:444,name:'サマルトリアの王子',rarity:'LEGEND',element:'雷',hp:108,atk:55,def:47,spd:75,skill:'イナズマギリ',image:'sumaltria.png',bpLimited:true},
- {number:445,name:'ムーンブルクの王女',rarity:'LEGEND',element:'光',hp:100,atk:60,def:45,spd:82,skill:'ムーンブルクノイノリ',image:'moonbrook.jpg',bpLimited:true}
+ {number:445,name:'ムーンブルクの王女',rarity:'LEGEND',element:'光',hp:100,atk:60,def:45,spd:82,skill:'ムーンブルクノイノリ',image:'moonbrook.png',bpLimited:true}
 ];
 chars.push(...BARCODE_ARENA_BP_LIMITED);
 const $=id=>document.getElementById(id), dexKey='barcodeArenaDex182', lastKey='barcodeArenaLast182', mapKey='barcodeArenaCodeMap182',stockKey='baMonsterStockV11',selectedKey='baSelectedMonsterV11',itemKey='baLegendItemsV11615';
@@ -520,7 +520,7 @@ function renderCodeBook(){
     renderCodeBook()
   });
 }
-function exportCodeBook(){const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]')),stock=stockData(),lines=['BARCODE ARENA v11.6.16 モンスターリスト',''];for(const c of chars.filter(x=>found.has(x.number)))lines.push(`No.${String(c.number).padStart(3,'0')} ${c.name}\t手持ち ×${Number(stock[c.number]||0)}`);downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_モンスターリスト.txt')}
+function exportCodeBook(){const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]')),stock=stockData(),lines=['BARCODE ARENA v11.6.17 モンスターリスト',''];for(const c of chars.filter(x=>found.has(x.number)))lines.push(`No.${String(c.number).padStart(3,'0')} ${c.name}\t手持ち ×${Number(stock[c.number]||0)}`);downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_モンスターリスト.txt')}
 window.addEventListener('ba-stock-changed',renderCodeBook);
 window.addEventListener('ba-bp-acquired',()=>{renderDex();renderCodeBook()});
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(b.dataset.page).classList.add('active');document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('primary',x===b))});
