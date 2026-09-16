@@ -40,7 +40,7 @@
 .stock-tools{margin-top:10px}.stock-tools button{flex:1}.stock-edit{display:flex;justify-content:center;gap:8px;margin-top:8px}.stock-edit button{padding:7px 12px;min-width:44px}.stock-edit strong{display:grid;place-items:center;min-width:34px}
 .mini.owned{cursor:pointer}.mini.selected{border:3px solid var(--gold);box-shadow:0 0 12px #f3bf3f88}.mini.empty{opacity:.5}.stock{color:#ffe39a!important;font-weight:700}.selected-mark{color:var(--gold)!important;font-weight:700}
 
-/* v11.6.21: camera guide + cross-device assist scan. Camera acquisition itself stays v11.6.20-stable. */
+/* v11.6.23: camera guide + cross-device assist scan + iOS Safari direct-canvas ZXing. Camera acquisition stays v11.6.20-stable. */
 .camera-shell{position:relative;width:100%;max-width:760px;margin:12px auto 0;background:#000;display:none;overflow:hidden;border:1px solid #444}
 .camera-shell .camera{width:100%;max-height:420px;background:#000;display:block;margin:0}
 .scan-overlay{position:absolute;inset:0;pointer-events:none;overflow:hidden}
@@ -109,7 +109,7 @@
 .legend-item{margin-top:12px;padding:12px;border:1px solid #d9c86d;background:linear-gradient(180deg,#17150c,#0a0b0d);text-align:center}.legend-item b{color:#fff2a6}.legend-item .item-count{font-size:20px;color:#ffe36e}.legend-item button{margin-top:8px}.dark-robe-tag{color:#c7a8ff;text-shadow:0 0 8px #7e45ff}.light-orb-result{border-color:#fff0a0!important;box-shadow:0 0 18px #fff3a844}.light-orb-result h2{color:#fff2a6;text-shadow:0 0 10px #ffe36e}
 </style>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS + 4 BP LIMITED / AUTO BATTLE v11.6.22</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS + 4 BP LIMITED / AUTO BATTLE v11.6.23</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="bpDraw">BP抽選</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">モンスターリスト</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><div id="cameraShell" class="camera-shell"><video id="camera" class="camera" playsinline muted></video><div class="scan-overlay"><div class="scan-guide"><div class="scan-guide-label">この黄色い枠にバーコード全体を入れる</div></div></div></div><canvas id="scanCanvas" class="scan-canvas" aria-hidden="true"></canvas><div class="scan-hint">バーコードを横向きにして、左右に少し余白を残してください。</div><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div><div class="legend-item"><b>伝説のアイテム</b><div class="item-count">光の玉 ×<span id="lightOrbCountSummon">0</span></div><small>ごくまれにバーコードから見つかります。</small></div></div></section>
 <section id="bpDraw" class="page"><div class="panel bp-panel"><h2>★ BP限定抽選 ★</h2><p class="status">対戦で貯めたBPを使って、バーコードからは出ない限定キャラクターを獲得できます。</p><p class="bp-balance">所持BP <b id="bpDrawBalance">0</b></p><button id="bpDrawBtn" class="primary">300 BPで抽選する</button><div id="bpDrawResult" class="bp-result status">BPを貯めて限定キャラクターを狙おう！</div></div></section>
@@ -343,8 +343,8 @@ async function startCamera(){
   $('camera').srcObject=stream;await $('camera').play();
   $('cameraShell').style.display='block';
   scanning=true;scanFinished=false;assistPass=0;
-  $('cameraStatus').textContent='黄色い横長の枠にバーコード全体を入れてください。中央付近を重点的に読み取ります。';
-  scanLoop();scheduleAssistScan(450);
+  $('cameraStatus').textContent=baIsIOS?'iPhone/iPad用の補助読み取りを使用中です。黄色い枠にバーコード全体を入れてください。':'黄色い横長の枠にバーコード全体を入れてください。中央付近を重点的に読み取ります。';
+  scanLoop();scheduleAssistScan(baIsIOS?220:450);
  }catch(e){$('cameraStatus').textContent=`カメラを開始できません（${e.name||'ERROR'}）。サイト設定でカメラを許可してください。`}
 }
 function stopCamera(){
@@ -353,13 +353,15 @@ function stopCamera(){
  assistBusy=false;
  if(zxingReader){try{zxingReader.reset()}catch(e){}zxingReader=null}
  if(zxingAssistReader){try{zxingAssistReader.reset()}catch(e){}zxingAssistReader=null}
+ if(zxingCoreAssistReader){try{zxingCoreAssistReader.reset()}catch(e){}zxingCoreAssistReader=null}
  nativeAssistDetector=null;
  if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;
  $('camera').srcObject=null;
  $('cameraShell').style.display='none';
 }
 let zxingReader=null,zxingControls=null;
-let zxingAssistReader=null,nativeAssistDetector=null,assistTimer=null,assistBusy=false,assistPass=0,scanFinished=false;
+let zxingAssistReader=null,zxingCoreAssistReader=null,nativeAssistDetector=null,assistTimer=null,assistBusy=false,assistPass=0,scanFinished=false;
+const baIsIOS=(()=>{const ua=navigator.userAgent||'';return /iPad|iPhone|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)})();
 
 function acceptScan(raw){
  if(!scanning||scanFinished)return false;
@@ -375,6 +377,29 @@ function scheduleAssistScan(delay){
  if(!scanning)return;
  if(assistTimer)clearTimeout(assistTimer);
  assistTimer=setTimeout(assistScanLoop,delay||280);
+}
+
+// Safari/iOS-safe helper: decode the already-captured canvas with ZXing core classes.
+// @zxing/library 0.21.3 does not expose BrowserMultiFormatReader.decodeFromCanvas,
+// so feeding Canvas -> LuminanceSource -> BinaryBitmap is the reliable route.
+function decodeCanvasWithZXingCore(canvas){
+ try{
+  const Z=window.ZXing;
+  if(!Z||!Z.HTMLCanvasElementLuminanceSource||!Z.BinaryBitmap||!Z.HybridBinarizer||!Z.MultiFormatReader)return null;
+  if(!zxingCoreAssistReader){
+   zxingCoreAssistReader=new Z.MultiFormatReader();
+   try{
+    if(Z.DecodeHintType){
+     const hints=new Map();
+     hints.set(Z.DecodeHintType.TRY_HARDER,true);
+     zxingCoreAssistReader.setHints(hints);
+    }
+   }catch(e){}
+  }
+  const source=new Z.HTMLCanvasElementLuminanceSource(canvas,true);
+  const bitmap=new Z.BinaryBitmap(new Z.HybridBinarizer(source));
+  return zxingCoreAssistReader.decode(bitmap);
+ }catch(e){return null}
 }
 
 // Stable full-frame ZXing remains the primary reader. This is the path that worked on Xiaomi 13T.
@@ -433,16 +458,11 @@ async function assistScanLoop(){
    ctx.drawImage(video,sx,sy,sw,sh,0,0,targetW,targetH);ctx.restore();
   }
 
-  // ZXing crop decode. Separate reader so the proven full-frame reader is never interrupted.
+  // Cross-browser crop decode, including iOS Safari.
+  // This uses ZXing's core Canvas luminance path instead of the browser helper that is unreliable on iOS.
   if(window.ZXing){
-   try{
-    if(!zxingAssistReader)zxingAssistReader=new ZXing.BrowserMultiFormatReader();
-    if(typeof zxingAssistReader.decodeFromCanvas==='function'){
-     let result=zxingAssistReader.decodeFromCanvas(canvas);
-     if(result&&typeof result.then==='function')result=await result;
-     if(result&&acceptScan(result.getText?.()||result.text||''))return;
-    }
-   }catch(e){}
+   const result=decodeCanvasWithZXingCore(canvas);
+   if(result&&acceptScan(result.getText?.()||result.text||''))return;
   }
 
   // Native detector is supplemental only. If a browser implements it well, it improves consistency;
@@ -458,7 +478,7 @@ async function assistScanLoop(){
   assistBusy=false;
   if(scanning&&!scanFinished){
    const cores=Number(navigator.hardwareConcurrency||4);
-   scheduleAssistScan(cores<=4?360:260);
+   scheduleAssistScan(baIsIOS?190:(cores<=4?360:260));
   }
  }
 }
@@ -617,7 +637,7 @@ function renderCodeBook(){
     renderCodeBook()
   });
 }
-function exportCodeBook(){const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]')),stock=stockData(),lines=['BARCODE ARENA v11.6.22 モンスターリスト',''];for(const c of chars.filter(x=>found.has(x.number)))lines.push(`No.${String(c.number).padStart(3,'0')} ${c.name}\t手持ち ×${Number(stock[c.number]||0)}`);downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_モンスターリスト.txt')}
+function exportCodeBook(){const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]')),stock=stockData(),lines=['BARCODE ARENA v11.6.23 モンスターリスト',''];for(const c of chars.filter(x=>found.has(x.number)))lines.push(`No.${String(c.number).padStart(3,'0')} ${c.name}\t手持ち ×${Number(stock[c.number]||0)}`);downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_モンスターリスト.txt')}
 window.addEventListener('ba-stock-changed',renderCodeBook);
 window.addEventListener('ba-bp-acquired',()=>{renderDex();renderCodeBook()});
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(b.dataset.page).classList.add('active');document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('primary',x===b))});
