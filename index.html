@@ -40,7 +40,7 @@
 .stock-tools{margin-top:10px}.stock-tools button{flex:1}.stock-edit{display:flex;justify-content:center;gap:8px;margin-top:8px}.stock-edit button{padding:7px 12px;min-width:44px}.stock-edit strong{display:grid;place-items:center;min-width:34px}
 .mini.owned{cursor:pointer}.mini.selected{border:3px solid var(--gold);box-shadow:0 0 12px #f3bf3f88}.mini.empty{opacity:.5}.stock{color:#ffe39a!important;font-weight:700}.selected-mark{color:var(--gold)!important;font-weight:700}
 
-/* v11.6.23: camera guide + cross-device assist scan + iOS Safari direct-canvas ZXing. Camera acquisition stays v11.6.20-stable. */
+/* v11.6.24: camera guide + cross-device assist scan + iOS Safari direct-canvas ZXing. Camera acquisition stays v11.6.20-stable. */
 .camera-shell{position:relative;width:100%;max-width:760px;margin:12px auto 0;background:#000;display:none;overflow:hidden;border:1px solid #444}
 .camera-shell .camera{width:100%;max-height:420px;background:#000;display:block;margin:0}
 .scan-overlay{position:absolute;inset:0;pointer-events:none;overflow:hidden}
@@ -109,7 +109,7 @@
 .legend-item{margin-top:12px;padding:12px;border:1px solid #d9c86d;background:linear-gradient(180deg,#17150c,#0a0b0d);text-align:center}.legend-item b{color:#fff2a6}.legend-item .item-count{font-size:20px;color:#ffe36e}.legend-item button{margin-top:8px}.dark-robe-tag{color:#c7a8ff;text-shadow:0 0 8px #7e45ff}.light-orb-result{border-color:#fff0a0!important;box-shadow:0 0 18px #fff3a844}.light-orb-result h2{color:#fff2a6;text-shadow:0 0 10px #ffe36e}
 </style>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS + 4 BP LIMITED / AUTO BATTLE v11.6.23</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS + 4 BP LIMITED / AUTO BATTLE v11.6.24</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="bpDraw">BP抽選</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">モンスターリスト</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><div id="cameraShell" class="camera-shell"><video id="camera" class="camera" playsinline muted></video><div class="scan-overlay"><div class="scan-guide"><div class="scan-guide-label">この黄色い枠にバーコード全体を入れる</div></div></div></div><canvas id="scanCanvas" class="scan-canvas" aria-hidden="true"></canvas><div class="scan-hint">バーコードを横向きにして、左右に少し余白を残してください。</div><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div><div class="legend-item"><b>伝説のアイテム</b><div class="item-count">光の玉 ×<span id="lightOrbCountSummon">0</span></div><small>ごくまれにバーコードから見つかります。</small></div></div></section>
 <section id="bpDraw" class="page"><div class="panel bp-panel"><h2>★ BP限定抽選 ★</h2><p class="status">対戦で貯めたBPを使って、バーコードからは出ない限定キャラクターを獲得できます。</p><p class="bp-balance">所持BP <b id="bpDrawBalance">0</b></p><button id="bpDrawBtn" class="primary">300 BPで抽選する</button><div id="bpDrawResult" class="bp-result status">BPを貯めて限定キャラクターを狙おう！</div></div></section>
@@ -637,7 +637,7 @@ function renderCodeBook(){
     renderCodeBook()
   });
 }
-function exportCodeBook(){const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]')),stock=stockData(),lines=['BARCODE ARENA v11.6.23 モンスターリスト',''];for(const c of chars.filter(x=>found.has(x.number)))lines.push(`No.${String(c.number).padStart(3,'0')} ${c.name}\t手持ち ×${Number(stock[c.number]||0)}`);downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_モンスターリスト.txt')}
+function exportCodeBook(){const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]')),stock=stockData(),lines=['BARCODE ARENA v11.6.24 モンスターリスト',''];for(const c of chars.filter(x=>found.has(x.number)))lines.push(`No.${String(c.number).padStart(3,'0')} ${c.name}\t手持ち ×${Number(stock[c.number]||0)}`);downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_モンスターリスト.txt')}
 window.addEventListener('ba-stock-changed',renderCodeBook);
 window.addEventListener('ba-bp-acquired',()=>{renderDex();renderCodeBook()});
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(b.dataset.page).classList.add('active');document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('primary',x===b))});
@@ -696,7 +696,7 @@ const last=Number(localStorage.getItem(lastKey));if(!localStorage.getItem(select
 const $a=id=>document.getElementById(id);
 let ap={bp:0,wins:0};try{ap=Object.assign(ap,JSON.parse(localStorage.getItem("baArenaProgressV7")||"{}"))}catch(e){}
 const save=()=>{localStorage.setItem("baArenaProgressV7",JSON.stringify(ap));$a("arenaBP").textContent=ap.bp;$a("arenaWins").textContent=ap.wins};save();
-const stockKey="baMonsterStockV11",selectedKey="baSelectedMonsterV11",settledKey="baSettledBattlesV115";
+const stockKey="baMonsterStockV11",selectedKey="baSelectedMonsterV11",settledKey="baSettledBattlesV115",arenaDexKey="barcodeArenaDex182";
 let peer=null,conn=null,host=false,ready=false,otherReady=false,room="",myMonster=null,otherMonster=null,timer=null,state=null,battleActive=false,finishedHandled=false,myOrbUsed=false,otherOrbUsed=false;
 const arenaItemKey='baLegendItemsV11615';
 function arenaItems(){try{return Object.assign({lightOrb:0},JSON.parse(localStorage.getItem(arenaItemKey)||'{}'))}catch(e){return {lightOrb:0}}}
@@ -730,13 +730,13 @@ function settleBattle(s){
   const won=iAmWinner?(host?s.guestMonster:s.hostMonster):null;
   const lost=iAmWinner?null:(host?s.hostMonster:s.guestMonster);
   const inv=stock();
-  if(won){inv[won.number]=Number(inv[won.number]||0)+1;const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]').map(Number));found.add(Number(won.number));localStorage.setItem(dexKey,JSON.stringify([...found]));}
+  if(won){inv[won.number]=Number(inv[won.number]||0)+1;const found=new Set(JSON.parse(localStorage.getItem(arenaDexKey)||'[]').map(Number));found.add(Number(won.number));localStorage.setItem(arenaDexKey,JSON.stringify([...found]));}
   if(lost)inv[lost.number]=Math.max(0,Number(inv[lost.number]||0)-1);
   localStorage.setItem(stockKey,JSON.stringify(inv));
   if(iAmWinner){ap.wins++;ap.bp+=15}else ap.bp+=5;
   save();
   done.push(s.id);localStorage.setItem(settledKey,JSON.stringify(done.slice(-100)));
-  window.dispatchEvent(new CustomEvent('ba-stock-changed'));renderDex();
+  window.dispatchEvent(new CustomEvent('ba-stock-changed'));if(won)window.dispatchEvent(new CustomEvent('ba-bp-acquired'));
   playArenaSound(iAmWinner?"victory":"defeat");if(iAmWinner)setTimeout(()=>playArenaSound("get"),650);
   return {iAmWinner,won,lost,bp:iAmWinner?15:5};
 }
