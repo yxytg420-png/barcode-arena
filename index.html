@@ -109,7 +109,7 @@
 .legend-item{margin-top:12px;padding:12px;border:1px solid #d9c86d;background:linear-gradient(180deg,#17150c,#0a0b0d);text-align:center}.legend-item b{color:#fff2a6}.legend-item .item-count{font-size:20px;color:#ffe36e}.legend-item button{margin-top:8px}.dark-robe-tag{color:#c7a8ff;text-shadow:0 0 8px #7e45ff}.light-orb-result{border-color:#fff0a0!important;box-shadow:0 0 18px #fff3a844}.light-orb-result h2{color:#fff2a6;text-shadow:0 0 10px #ffe36e}
 </style>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS + 4 BP LIMITED / AUTO BATTLE v11.6.24</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS + 4 BP LIMITED / AUTO BATTLE v11.6.26</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="bpDraw">BP抽選</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">モンスターリスト</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><div id="cameraShell" class="camera-shell"><video id="camera" class="camera" playsinline muted></video><div class="scan-overlay"><div class="scan-guide"><div class="scan-guide-label">この黄色い枠にバーコード全体を入れる</div></div></div></div><canvas id="scanCanvas" class="scan-canvas" aria-hidden="true"></canvas><div class="scan-hint">バーコードを横向きにして、左右に少し余白を残してください。</div><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div><div class="legend-item"><b>伝説のアイテム</b><div class="item-count">光の玉 ×<span id="lightOrbCountSummon">0</span></div><small>ごくまれにバーコードから見つかります。</small></div></div></section>
 <section id="bpDraw" class="page"><div class="panel bp-panel"><h2>★ BP限定抽選 ★</h2><p class="status">対戦で貯めたBPを使って、バーコードからは出ない限定キャラクターを獲得できます。</p><p class="bp-balance">所持BP <b id="bpDrawBalance">0</b></p><button id="bpDrawBtn" class="primary">300 BPで抽選する</button><div id="bpDrawResult" class="bp-result status">BPを貯めて限定キャラクターを狙おう！</div></div></section>
@@ -637,7 +637,7 @@ function renderCodeBook(){
     renderCodeBook()
   });
 }
-function exportCodeBook(){const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]')),stock=stockData(),lines=['BARCODE ARENA v11.6.24 モンスターリスト',''];for(const c of chars.filter(x=>found.has(x.number)))lines.push(`No.${String(c.number).padStart(3,'0')} ${c.name}\t手持ち ×${Number(stock[c.number]||0)}`);downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_モンスターリスト.txt')}
+function exportCodeBook(){const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]')),stock=stockData(),lines=['BARCODE ARENA v11.6.26 モンスターリスト',''];for(const c of chars.filter(x=>found.has(x.number)))lines.push(`No.${String(c.number).padStart(3,'0')} ${c.name}\t手持ち ×${Number(stock[c.number]||0)}`);downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_モンスターリスト.txt')}
 window.addEventListener('ba-stock-changed',renderCodeBook);
 window.addEventListener('ba-bp-acquired',()=>{renderDex();renderCodeBook()});
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(b.dataset.page).classList.add('active');document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('primary',x===b))});
@@ -723,22 +723,34 @@ function prepareRematch(){
   $a("arenaReady").disabled=!(conn&&conn.open);$a("arenaStart").disabled=true;
 }
 function settledIds(){try{return JSON.parse(localStorage.getItem(settledKey)||'[]')}catch(e){return []}}
+function arenaPower(m){return Number(m?.hp||0)+Number(m?.atk||0)+Number(m?.def||0)+Number(m?.spd||0)}
+function arenaWinBp(my,enemy){
+  const mine=Math.max(1,arenaPower(my)),theirs=arenaPower(enemy),ratio=theirs/mine;
+  if(ratio<=0.75)return 5;
+  if(ratio<=0.90)return 10;
+  if(ratio<1.10)return 15;
+  if(ratio<1.25)return 20;
+  return 25;
+}
 function settleBattle(s){
   if(!s||!s.id||!s.winner||!s.hostMonster||!s.guestMonster)return null;
   const done=settledIds();if(done.includes(s.id))return null;
   const iAmWinner=(host&&s.winner==="host")||(!host&&s.winner==="guest");
-  const won=iAmWinner?(host?s.guestMonster:s.hostMonster):null;
-  const lost=iAmWinner?null:(host?s.hostMonster:s.guestMonster);
+  const mine=host?s.hostMonster:s.guestMonster;
+  const enemy=host?s.guestMonster:s.hostMonster;
+  const won=iAmWinner?enemy:null;
+  const lost=iAmWinner?null:mine;
+  const earnedBp=iAmWinner?arenaWinBp(mine,enemy):5;
   const inv=stock();
   if(won){inv[won.number]=Number(inv[won.number]||0)+1;const found=new Set(JSON.parse(localStorage.getItem(arenaDexKey)||'[]').map(Number));found.add(Number(won.number));localStorage.setItem(arenaDexKey,JSON.stringify([...found]));}
   if(lost)inv[lost.number]=Math.max(0,Number(inv[lost.number]||0)-1);
   localStorage.setItem(stockKey,JSON.stringify(inv));
-  if(iAmWinner){ap.wins++;ap.bp+=15}else ap.bp+=5;
+  if(iAmWinner){ap.wins++;ap.bp+=earnedBp}else ap.bp+=earnedBp;
   save();
   done.push(s.id);localStorage.setItem(settledKey,JSON.stringify(done.slice(-100)));
   window.dispatchEvent(new CustomEvent('ba-stock-changed'));if(won)window.dispatchEvent(new CustomEvent('ba-bp-acquired'));
   playArenaSound(iAmWinner?"victory":"defeat");if(iAmWinner)setTimeout(()=>playArenaSound("get"),650);
-  return {iAmWinner,won,lost,bp:iAmWinner?15:5};
+  return {iAmWinner,won,lost,bp:earnedBp};
 }
 function battleResultLines(result){
   if(!result)return null;
@@ -782,7 +794,7 @@ function setup(c){conn=c;c.on("open",()=>{status("接続しました。リスト
  if(m.t==="lightOrb"&&!battleActive){otherOrbUsed=true;arenaMsg(['ひかりのたまが かがやいた！',`${myMonster?.name||'モンスター'}の`,'やみのころもが はがれおちた！','じゃくてんが もどった！']);status('相手が光の玉を使いました。');refreshArenaOrb()}
  if(m.t==="ready"&&!battleActive){otherReady=true;otherMonster=m.m;renderArenaReadyPreview();status(ready?"両者READY！":"相手READY！ あなたもREADYしてね。");refreshArenaOrb();check()}
  if(m.t==="start"){if(battleActive||!m.s?.id)return;clearBattleTimer();state=m.s;finishedHandled=false;setStartLock(true);status("3… 2… 1… FIGHT!!");arenaMsg((myMonster?.darkRobe&&!otherOrbUsed)||(otherMonster?.darkRobe&&!myOrbUsed)?["3… 2… 1…","BATTLE START！","やみのころもが","ふしぎな力を はなつ！"]:["3…","2…","1…","BATTLE START！"]);renderArenaRetro()}
- if(m.t==="state"){if(!battleActive||!state?.id||m.s?.id!==state.id)return;state=m.s;status(m.msg);renderArenaRetro();if(m.lines)arenaMsg(m.lines);if(state.settled&&!finishedHandled){finishedHandled=true;const result=settleBattle(state);const resultLines=battleResultLines(result);if(resultLines)arenaMsg(resultLines);status(result?.iAmWinner?"勝利！ モンスターと15BPを獲得しました。":"敗北…。モンスターを失い、5BPを獲得しました。");setTimeout(()=>{prepareRematch();status("次のモンスターを選び、もう一度READYしてください。");arenaMsg(["しょうぶが つきました。","&nbsp;","つぎの モンスターを えらび","もういちど READY！"]);},3500)}}
+ if(m.t==="state"){if(!battleActive||!state?.id||m.s?.id!==state.id)return;state=m.s;status(m.msg);renderArenaRetro();if(m.lines)arenaMsg(m.lines);if(state.settled&&!finishedHandled){finishedHandled=true;const result=settleBattle(state);const resultLines=battleResultLines(result);if(resultLines)arenaMsg(resultLines);status(result?.iAmWinner?`勝利！ モンスターと${result.bp}BPを獲得しました。`:`敗北…。モンスターを失い、${result?.bp||5}BPを獲得しました。`);setTimeout(()=>{prepareRematch();status("結果を確認して、次のモンスターを選び、もう一度READYしてください。");},3500)}}
 });}
 function check(){if(ready&&otherReady){status("両者READY！");if(host)$a("arenaStart").disabled=false}}
 $a("arenaCreate").onclick=()=>{room=String(Math.floor(1000+Math.random()*9000));host=true;peer=new Peer("ba182-"+room);peer.on("open",()=>status("対戦コード "+room+" ／ 相手を待っています…"));peer.on("connection",setup)}
@@ -824,7 +836,7 @@ function run(isHost){
     if(finished&&!finishedHandled){
       finishedHandled=true;
       state.winner=winner===myMonster?"host":"guest";state.settled=true;
-      const result=settleBattle(state);send({t:"state",s:state,msg,lines});const resultLines=battleResultLines(result);if(resultLines)arenaMsg(resultLines);status(result?.iAmWinner?"勝利！ モンスターと15BPを獲得しました。":"敗北…。モンスターを失い、5BPを獲得しました。");clearBattleTimer();setTimeout(()=>{prepareRematch();status("次のモンスターを選び、もう一度READYしてください。");arenaMsg(["しょうぶが つきました。","&nbsp;","つぎの モンスターを えらび","もういちど READY！"]);},3500);return;
+      const result=settleBattle(state);send({t:"state",s:state,msg,lines});const resultLines=battleResultLines(result);if(resultLines)arenaMsg(resultLines);status(result?.iAmWinner?`勝利！ モンスターと${result.bp}BPを獲得しました。`:`敗北…。モンスターを失い、${result?.bp||5}BPを獲得しました。`);clearBattleTimer();setTimeout(()=>{prepareRematch();status("結果を確認して、次のモンスターを選び、もう一度READYしてください。");},3500);return;
     }
     state.turn=state.turn==="a"?"b":"a";state.n++;
     send({t:"state",s:state,msg,lines});status(msg);
