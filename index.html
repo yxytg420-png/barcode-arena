@@ -109,7 +109,7 @@
 .legend-item{margin-top:12px;padding:12px;border:1px solid #d9c86d;background:linear-gradient(180deg,#17150c,#0a0b0d);text-align:center}.legend-item b{color:#fff2a6}.legend-item .item-count{font-size:20px;color:#ffe36e}.legend-item button{margin-top:8px}.dark-robe-tag{color:#c7a8ff;text-shadow:0 0 8px #7e45ff}.light-orb-result{border-color:#fff0a0!important;box-shadow:0 0 18px #fff3a844}.light-orb-result h2{color:#fff2a6;text-shadow:0 0 10px #ffe36e}
 </style>
 </head><body><main class="wrap">
-<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS + 4 BP LIMITED / AUTO BATTLE v11.6.28</p>
+<h1>BARCODE ARENA</h1><p class="sub">441 MONSTERS + 4 BP LIMITED / AUTO BATTLE v11.6.29</p>
 <nav class="tabs"><button data-page="summon" class="primary">召喚</button><button data-page="bpDraw">BP抽選</button><button data-page="battle">対戦</button><button data-page="dex">図鑑</button><button data-page="codes">モンスターリスト</button></nav>
 <section id="summon" class="page active"><div class="panel"><h2>バーコード召喚</h2><div class="row"><button id="cameraBtn" class="primary">カメラで読む</button><button id="stopCamera">停止</button></div><div id="cameraShell" class="camera-shell"><video id="camera" class="camera" playsinline muted></video><div class="scan-overlay"><div class="scan-guide"><div class="scan-guide-label">この黄色い枠にバーコード全体を入れる</div></div></div></div><canvas id="scanCanvas" class="scan-canvas" aria-hidden="true"></canvas><div class="scan-hint">バーコードを横向きにして、左右に少し余白を残してください。</div><p id="cameraStatus" class="status">カメラが使えない場合は数字を入力できます。</p><div class="row"><input id="code" inputmode="numeric" autocomplete="off" placeholder="JAN / EAN または4桁以上"><button id="summonBtn" class="primary">ピッ！召喚</button></div></div><div class="panel"><div id="result" class="status">バーコードを読んで召喚してください。</div><div class="legend-item"><b>伝説のアイテム</b><div class="item-count">光の玉 ×<span id="lightOrbCountSummon">0</span></div><small>ごくまれにバーコードから見つかります。</small></div></div></section>
 <section id="bpDraw" class="page"><div class="panel bp-panel"><h2>★ BP限定抽選 ★</h2><p class="status">対戦で貯めたBPを使って、バーコードからは出ない限定キャラクターを獲得できます。</p><p class="bp-balance">所持BP <b id="bpDrawBalance">0</b></p><button id="bpDrawBtn" class="primary">300 BPで抽選する</button><div id="bpDrawResult" class="bp-result status">BPを貯めて限定キャラクターを狙おう！</div></div></section>
@@ -137,8 +137,8 @@
 </section>
 <section id="dex" class="page"><div class="panel"><h2>発見図鑑 <span id="count">0 / 182</span></h2><div class="row"><select id="filter"><option value="all">すべて</option><option value="found">発見済み</option><option value="missing">未発見</option></select><button id="resetDex">図鑑を消去</button></div></div><div id="book" class="grid"></div></section>
 <section id="codes" class="page"><div class="panel"><h2>モンスターリスト <span id="codeCount">0種</span></h2><p class="status">発見したモンスターの手持ち数です。タップするとオンライン対戦に出す1匹を選べます。</p><div class="row"><input id="codeSearch" placeholder="モンスター名を検索"><button id="exportCodes">リストを保存</button></div>
-<div class="row stock-tools"><button id="editStock">手持ち数を編集</button><button id="resetBadStock">誤った手持ちを0に戻す</button><button id="undoStockReset" disabled>元に戻す</button></div>
-<p class="status" id="stockHelp">※「誤った手持ちを0に戻す」は現在の手持ちをバックアップしてから0にします。必要なモンスターは「手持ち数を編集」で＋/－できます。</p>
+<div class="row stock-tools"><button id="resetBadStock">誤った手持ちを0に戻す</button><button id="undoStockReset" disabled>元に戻す</button></div>
+<p class="status" id="stockHelp">※「誤った手持ちを0に戻す」は現在の手持ちをバックアップしてから0にします。</p>
 </div><div id="codeBook" class="grid"></div></section>
 
 <section class="panel" id="onlineArena">
@@ -637,13 +637,13 @@ function renderCodeBook(){
     renderCodeBook()
   });
 }
-function exportCodeBook(){const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]')),stock=stockData(),lines=['BARCODE ARENA v11.6.28 モンスターリスト',''];for(const c of chars.filter(x=>found.has(x.number)))lines.push(`No.${String(c.number).padStart(3,'0')} ${c.name}\t手持ち ×${Number(stock[c.number]||0)}`);downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_モンスターリスト.txt')}
+function exportCodeBook(){const found=new Set(JSON.parse(localStorage.getItem(dexKey)||'[]')),stock=stockData(),lines=['BARCODE ARENA v11.6.29 モンスターリスト',''];for(const c of chars.filter(x=>found.has(x.number)))lines.push(`No.${String(c.number).padStart(3,'0')} ${c.name}\t手持ち ×${Number(stock[c.number]||0)}`);downloadBlob(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),'BARCODE_ARENA_モンスターリスト.txt')}
 window.addEventListener('ba-stock-changed',renderCodeBook);
 window.addEventListener('ba-bp-acquired',()=>{renderDex();renderCodeBook()});
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(b.dataset.page).classList.add('active');document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('primary',x===b))});
 
 const stockBackupKey='baMonsterStockBackupV1169';
-$('editStock').onclick=()=>{stockEditMode=!stockEditMode;$('editStock').textContent=stockEditMode?'編集を終了':'手持ち数を編集';renderCodeBook()};
+const editStockBtn=$('editStock');if(editStockBtn)editStockBtn.onclick=()=>{stockEditMode=!stockEditMode;editStockBtn.textContent=stockEditMode?'編集を終了':'手持ち数を編集';renderCodeBook()};
 $('resetBadStock').onclick=()=>{
   if(!confirm('現在の手持ち数をバックアップして、いったん全て0に戻します。よろしいですか？'))return;
   localStorage.setItem(stockBackupKey,JSON.stringify(stockData()));
@@ -651,7 +651,7 @@ $('resetBadStock').onclick=()=>{
   localStorage.removeItem(selectedKey);player=null;
   $('battleMonsterLabel').textContent='対戦するモンスターをリストで選んでください。';
   $('undoStockReset').disabled=false;
-  stockEditMode=true;$('editStock').textContent='編集を終了';
+  stockEditMode=false;
   renderCodeBook();
 };
 $('undoStockReset').onclick=()=>{
